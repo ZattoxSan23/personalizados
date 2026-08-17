@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  html, body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+    font-feature-settings: 'cv11', 'ss01', 'cv02';
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    /* Safe areas para iOS notch + home indicator */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    /* Evitar scroll horizontal accidental en mobile */
+    overflow-x: hidden;
+  }
+
+  /* Headings balanceados */
+  h1, h2, h3 { text-wrap: balance; }
+
+  /* Focus rings accesibles */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary-600;
+  }
+
+  /* Inputs: prevenir zoom en iOS */
+  input, select, textarea { font-size: 16px; }
+}
+
+@layer components {
+  /* ─── Buttons ─────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+           transition-all duration-150 ease-out-quart select-none
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    min-height: 40px;
+  }
+  .btn-primary {
+    @apply btn bg-primary-600 text-white shadow-primary-glow
+           hover:bg-primary-700 hover:shadow-card-hover
+           active:bg-primary-800 active:scale-[0.97];
+  }
+  .btn-secondary {
+    @apply btn bg-white text-ink-900 border border-ink-200 shadow-xs
+           hover:bg-ink-50 hover:border-ink-300 hover:shadow-card
+           active:bg-ink-100;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-ink-700 hover:bg-ink-100 active:bg-ink-200;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+  }
+  .btn-accent {
+    @apply btn bg-accent-500 text-white shadow-accent-glow
+           hover:bg-accent-600 active:bg-accent-700 active:scale-[0.97];
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg p-2 transition-colors
+           hover:bg-ink-100 active:bg-ink-200 text-ink-500 hover:text-ink-900;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  /* ─── Inputs ─────────────────────────────── */
+  .input {
+    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900
+           placeholder:text-ink-400
+           focus:border-primary-500 focus:ring-2 focus:ring-primary-100 focus:outline-none
+           transition-colors duration-150;
+    min-height: 40px;
+  }
+
+  /* ─── Cards ─────────────────────────────── */
+  .card {
+    @apply rounded-xl border border-ink-200/70 bg-white p-4 shadow-card;
+  }
+  .card-interactive {
+    @apply card transition-all duration-200 ease-out-quart
+           hover:border-ink-300 hover:shadow-card-hover hover:-translate-y-px
+           active:translate-y-0 active:shadow-card;
+  }
+  .card-glass {
+    @apply rounded-xl border border-white/20 bg-white/80 backdrop-blur-md shadow-card;
+  }
+
+  /* ─── Badges ─────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .badge-green {
+    @apply badge bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200;
+  }
+  .badge-yellow {
+    @apply badge bg-accent-50 text-accent-700 ring-1 ring-inset ring-accent-200;
+  }
+  .badge-red {
+    @apply badge bg-red-50 text-red-700 ring-1 ring-inset ring-red-200;
+  }
+  .badge-slate {
+    @apply badge bg-ink-100 text-ink-700 ring-1 ring-inset ring-ink-200;
+  }
+  .badge-gray {
+    @apply badge bg-ink-100 text-ink-600 ring-1 ring-inset ring-ink-200;
+  }
+  .badge-blue {
+    @apply badge bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200;
+  }
+
+  /* ─── Avatar con iniciales ─────────────────────────────── */
+  .avatar {
+    @apply inline-flex items-center justify-center rounded-full font-bold text-white;
+    background-image: linear-gradient(135deg, var(--tw-gradient-stops));
+  }
+  .avatar-emerald {
+    @apply avatar from-primary-400 to-primary-700;
+  }
+  .avatar-amber {
+    @apply avatar from-accent-400 to-accent-600;
+  }
+
+  /* ─── Empty state ─────────────────────────────── */
+  .empty-state {
+    @apply card text-center py-12 space-y-3;
+  }
+
+  /* ─── KPI cards (dashboard) ─────────────────────────────── */
+  .kpi-card {
+    @apply card-interactive relative overflow-hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    @apply absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary-500 to-primary-700 opacity-0;
+    transition: opacity 200ms ease-out-quart;
+  }
+  .kpi-card:hover::before { @apply opacity-100; }
+
+  /* ─── Tab indicator ─────────────────────────────── */
+  .tab-active {
+    @apply border-primary-600 text-primary-700;
+  }
+
+  /* ─── Section header con eyebrow ─────────────────────────────── */
+  .eyebrow {
+    @apply text-[10px] font-bold text-ink-500 uppercase tracking-[0.08em];
+  }
+}
+
+@layer utilities {
+  /* Scrollbar refinada */
+  .scrollbar-thin::-webkit-scrollbar { @apply h-1.5 w-1.5; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { @apply bg-ink-300 rounded-full hover:bg-ink-400; }
+  .scrollbar-thin::-webkit-scrollbar-track { @apply bg-transparent; }
+
+  /* Hide scrollbar pero permitir scroll */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+
+  /* Truncate multi-línea */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Touch optimization */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply bg-ink-100 rounded animate-pulse;
+  }
+
+  /* Safe area paddings */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Dark mode hook (futuro) */
+@media (prefers-color-scheme: dark) {
+  /* Preparado para dark mode futuro */
+}
