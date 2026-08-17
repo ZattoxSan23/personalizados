@@ -147,15 +147,15 @@ export default function AIChat({
             <ul className="space-y-1 text-xs">
               {selectedClient ? (
                 <>
-                  <li>· &ldquo;Crea una rutina de hipertrofia para {selectedClient.name}, 4 días, con enfoque en tren superior&rdquo;</li>
-                  <li>· &ldquo;Plan de alimentación de 2200 kcal para {selectedClient.name}, rico en proteínas&rdquo;</li>
-                  <li>· &ldquo;Quiero mejorar la fuerza de pierna de {selectedClient.name}, dame 3 días por semana&rdquo;</li>
+                  <li>{`· "Crea una rutina de hipertrofia para ${selectedClient.name}, 4 días, con enfoque en tren superior"`}</li>
+                  <li>{`· "Plan de alimentación de 2200 kcal para ${selectedClient.name}, rico en proteínas"`}</li>
+                  <li>{`· "Quiero mejorar la fuerza de pierna de ${selectedClient.name}, dame 3 días por semana"`}</li>
                 </>
               ) : (
                 <>
                   <li>· Selecciona un cliente y describe qué necesitas</li>
-                  <li>· &ldquo;Crea rutina fullbody para principiante, 3 días&rdquo;</li>
-                  <li>· &ldquo;Plan cutting 2000 kcal para hombre de 80kg&rdquo;</li>
+                  <li>{`· "Crea rutina fullbody para principiante, 3 días"`}</li>
+                  <li>{`· "Plan cutting 2000 kcal para hombre de 80kg"`}</li>
                 </>
               )}
             </ul>
