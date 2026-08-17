@@ -16,11 +16,14 @@ if (!DATABASE_URL) {
 // prepared statements — PgBouncer en modo "transaction" no los soporta
 // entre transacciones. En local también funciona, así dejamos una sola
 // configuración para los dos entornos.
+// Forzamos ssl:'require' además del query string, por si la URL en el
+// entorno serverless no incluye ?sslmode=require (Supabase pooler lo exige).
 const queryClient = postgres(DATABASE_URL, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
   prepare: false,
+  ssl: 'require',
 });
 
 export const db = drizzle(queryClient, { schema });
