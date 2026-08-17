@@ -11,11 +11,16 @@ if (!DATABASE_URL) {
   );
 }
 
-// Conexión a Supabase Postgres
+// Conexión a Supabase Postgres.
+// Usamos el pooler (PgBouncer) en producción, por lo que desactivamos
+// prepared statements — PgBouncer en modo "transaction" no los soporta
+// entre transacciones. En local también funciona, así dejamos una sola
+// configuración para los dos entornos.
 const queryClient = postgres(DATABASE_URL, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
+  prepare: false,
 });
 
 export const db = drizzle(queryClient, { schema });
