@@ -7,6 +7,7 @@ import {
 import { toast } from '@/app/components/Toast';
 import type { ExerciseSetEntry } from '@/lib/db/schema';
 import { localDatetimeInputValueLima, localInputToIso } from '@/lib/date';
+import { formatSeconds, formatDurationShort } from '@/lib/format';
 
 interface Props {
   routineExerciseId: string;
@@ -32,10 +33,13 @@ interface SessionAnalysis {
     setsCompleted: number;
     totalSets: number;
     topSet: { w: number; r: number } | null;
+    topSetDurationSeconds?: number | null;
+    totalTimeSeconds?: number;
     rpe: number | null;
   }>;
   prsByRepRange: Record<number, number>;
   allTimePR: { weight: number; reps: number; date: Date | string | null } | null;
+  allTimePRDurationSeconds?: number | null;
   lastSession: {
     id: string;
     date: Date | string;
@@ -44,6 +48,8 @@ interface SessionAnalysis {
     setsCompleted: number;
     totalSets: number;
     topSet: { w: number; r: number } | null;
+    topSetDurationSeconds?: number | null;
+    totalTimeSeconds?: number;
     rpe: number | null;
   } | null;
   totalSessions: number;
@@ -258,12 +264,23 @@ export default function LogExerciseSets({
           {analysis && analysis.totalSessions > 0 && (
             <div className="bg-gradient-to-br from-primary-50 to-primary-100/60 px-3 py-2 border-b border-primary-200/50">
               <div className="flex items-center gap-3 text-xs flex-wrap">
-                {analysis.allTimePR && analysis.allTimePR.weight > 0 && (
+                {/* PR por reps (solo si hay peso) */}
+                {trackingType !== 'time' && analysis.allTimePR && analysis.allTimePR.weight > 0 && (
                   <div className="flex items-center gap-1">
                     <Trophy className="w-3.5 h-3.5 text-amber-600" />
                     <span className="text-ink-600">PR:</span>
                     <span className="font-bold tabular-nums">
                       {analysis.allTimePR.weight}kg × {analysis.allTimePR.reps}
+                    </span>
+                  </div>
+                )}
+                {/* PR por tiempo */}
+                {trackingType === 'time' && analysis.allTimePRDurationSeconds != null && analysis.allTimePRDurationSeconds > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-ink-600">PR:</span>
+                    <span className="font-bold tabular-nums">
+                      {formatSeconds(analysis.allTimePRDurationSeconds)}
                     </span>
                   </div>
                 )}
@@ -274,14 +291,33 @@ export default function LogExerciseSets({
               </div>
               {analysis.lastSession && (
                 <p className="text-[10px] text-ink-500 mt-1">
-                  Última vez: top{' '}
-                  <span className="font-semibold">
-                    {analysis.lastSession.topSet
-                      ? `${analysis.lastSession.topSet.w}×${analysis.lastSession.topSet.r}`
-                      : '—'}
-                  </span>{' '}
-                  · vol{' '}
-                  <span className="font-semibold">{analysis.lastSession.volume}kg</span>
+                  {trackingType === 'time' ? (
+                    // Sesión por tiempo: mostrar top duración + total
+                    <>
+                      Última vez: top{' '}
+                      <span className="font-semibold">
+                        {analysis.lastSession.topSetDurationSeconds != null && analysis.lastSession.topSetDurationSeconds > 0
+                          ? formatSeconds(analysis.lastSession.topSetDurationSeconds)
+                          : '—'}
+                      </span>{' '}
+                      · total{' '}
+                      <span className="font-semibold">
+                        {formatSeconds(analysis.lastSession.totalTimeSeconds ?? 0)}
+                      </span>
+                    </>
+                  ) : (
+                    // Sesión por reps: formato actual (sin cambios)
+                    <>
+                      Última vez: top{' '}
+                      <span className="font-semibold">
+                        {analysis.lastSession.topSet
+                          ? `${analysis.lastSession.topSet.w}×${analysis.lastSession.topSet.r}`
+                          : '—'}
+                      </span>{' '}
+                      · vol{' '}
+                      <span className="font-semibold">{analysis.lastSession.volume}kg</span>
+                    </>
+                  )}
                 </p>
               )}
             </div>

@@ -22,13 +22,20 @@ export interface DerivedSession {
   setsCompleted: number;
   totalSets: number;
   topSet: { w: number; r: number } | null;
+  /** Duración máxima entre las series completadas (segundos). Solo para ejercicios por tiempo. */
+  topSetDurationSeconds?: number | null;
+  /** Suma de durationSeconds de series completadas (equivalente al volumen para tiempo). */
+  totalTimeSeconds: number;
   rpe: number | null;
 }
 
 export interface DerivedAnalysis {
   sessions: DerivedSession[]; // cronológico (ascendente por fecha)
   prsByRepRange: Record<number, number>;
+  /** PR histórico por peso×reps. Para ejercicios por tiempo usar allTimePRDurationSeconds. */
   allTimePR: { weight: number; reps: number; date: Date | null } | null;
+  /** PR histórico por duración (segundos). Para ejercicios por reps usar allTimePR. */
+  allTimePRDurationSeconds: number | null;
   lastSession: DerivedSession | null;
   totalSessions: number;
 }
@@ -62,6 +69,20 @@ export function deriveAnalysis(logs: RawLog[]): DerivedAnalysis {
       (best, s) => (!best || s.weight > best.w ? { w: s.weight, r: s.reps } : best),
       null,
     );
+    // Datos de tiempo: top set y total
+    const topSetDurationSeconds = completed.reduce<number | null>(
+      (best, s) => {
+        const d = s.durationSeconds ?? 0;
+        if (d <= 0) return best;
+        if (best == null || d > best) return d;
+        return best;
+      },
+      null,
+    );
+    const totalTimeSeconds = completed.reduce(
+      (sum, s) => sum + (s.durationSeconds ?? 0),
+      0,
+    );
     return {
       id: l.id,
       date: l.performedAt,
@@ -70,6 +91,8 @@ export function deriveAnalysis(logs: RawLog[]): DerivedAnalysis {
       setsCompleted: completed.length,
       totalSets: sets.length,
       topSet,
+      topSetDurationSeconds,
+      totalTimeSeconds,
       rpe: l.rpe,
     };
   });
@@ -88,6 +111,7 @@ export function deriveAnalysis(logs: RawLog[]): DerivedAnalysis {
     }
   }
 
+  // PR por peso (ignora ejercicios por tiempo sin peso)
   const allTimePR = logs.reduce<{ weight: number; reps: number; date: Date | null } | null>(
     (best, l) => {
       for (const s of effectiveSets(l)) {
@@ -101,12 +125,29 @@ export function deriveAnalysis(logs: RawLog[]): DerivedAnalysis {
     null,
   );
 
+  // PR por tiempo: máximo topSetDurationSeconds histórico (o derivado de sets)
+  let allTimePRDurationSeconds: number | null = null;
+  for (const l of logs) {
+    const topDur = l.topSetDurationSeconds ?? null;
+    if (topDur != null && (allTimePRDurationSeconds == null || topDur > allTimePRDurationSeconds)) {
+      allTimePRDurationSeconds = topDur;
+    }
+    for (const s of effectiveSets(l)) {
+      if (!s.completed) continue;
+      const d = s.durationSeconds ?? 0;
+      if (d > 0 && (allTimePRDurationSeconds == null || d > allTimePRDurationSeconds)) {
+        allTimePRDurationSeconds = d;
+      }
+    }
+  }
+
   const lastSession = sessions[sessions.length - 1] ?? null;
 
   return {
     sessions,
     prsByRepRange,
     allTimePR,
+    allTimePRDurationSeconds,
     lastSession,
     totalSessions: logs.length,
   };

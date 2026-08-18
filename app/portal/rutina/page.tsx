@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Sparkline } from '@/app/components/Sparkline';
 import { dayOfWeekInLima, toLimaDateString } from '@/lib/date';
+import { formatSeconds } from '@/lib/format';
 
 const DAYS_FULL = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 const DAYS_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -52,6 +53,7 @@ export default async function RutinaPage() {
     notes: string | null;
     sets: Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
     trackingType: 'reps' | 'time' | null;
+    totalTimeSeconds?: number;
   }>> = {};
   let allTimePR = 0;
 
@@ -86,15 +88,33 @@ export default async function RutinaPage() {
       const sets = (log.sets ?? []) as Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
       const completed = sets.filter((s) => s.completed);
       const volume = completed.reduce((sum, s) => sum + s.weight * s.reps, 0);
-      const topSet = completed.length > 0
-        ? completed.reduce<{ w: number; r: number }>((best, s) => (!best || s.weight > best.w ? { w: s.weight, r: s.reps } : best), { w: 0, r: 0 })
-        : (w > 0 && r > 0 ? { w, r } : null);
+      const totalTimeSeconds = completed.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0);
+      // topSet: por peso si hay peso, si no por duración
+      let topSet: { w: number; r: number } | null;
+      const bestByWeight = completed.length > 0
+        ? completed.reduce<{ w: number; r: number } | null>(
+            (best, s) => (s.weight > 0 && (!best || s.weight > best.w) ? { w: s.weight, r: s.reps } : best),
+            null,
+          )
+        : null;
+      if (bestByWeight) {
+        topSet = bestByWeight;
+      } else if (totalTimeSeconds > 0) {
+        // Para ejercicios por tiempo, topSet.r guarda la duración máxima
+        const maxDur = Math.max(...completed.map((s) => s.durationSeconds ?? 0));
+        topSet = { w: 0, r: maxDur };
+      } else if (w > 0 && r > 0) {
+        topSet = { w, r };
+      } else {
+        topSet = null;
+      }
       list.push({
         weight: w,
         reps: r,
         date: toLimaDateString(log.performedAt),
         topSet,
         volume: Math.round(volume),
+        totalTimeSeconds,
         rpe: log.rpe,
         notes: log.notes,
         sets: completed,
@@ -220,6 +240,7 @@ async function DayCard({
     notes: string | null;
     sets: Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
     trackingType: 'reps' | 'time' | null;
+    totalTimeSeconds?: number;
   }>>;
 }) {
   const exes = await db
@@ -402,7 +423,7 @@ function ExerciseRow({
         )}
 
         {/* Última sesión destacada */}
-        {last ? <LastSessionCard last={last} suggestedWeight={exercise.weightKg ? Number(exercise.weightKg) : null} /> : (
+        {last ? <LastSessionCard last={last} suggestedWeight={exercise.weightKg ? Number(exercise.weightKg) : null} trackingType={exercise.trackingType ?? 'reps'} suggestedDurationSeconds={exercise.durationSeconds} /> : (
           <p className="text-xs text-ink-500 italic pt-1 border-t border-ink-200/60 inline-flex items-center gap-1.5">
             <Eye className="w-3 h-3" /> Aún sin registro de tu coach
           </p>
@@ -415,8 +436,19 @@ function ExerciseRow({
             <ul className="space-y-2">
               {[...history].reverse().slice(0, 5).map((l, i) => {
                 const prev = history[history.length - 1 - i - 1];
-                const delta = prev ? l.weight - prev.weight : null;
                 const isTime = l.trackingType === 'time';
+                // delta según tipo: tiempo → segundos; reps → peso
+                let delta: number | null = null;
+                if (isTime && prev) {
+                  const durCurr = l.sets.reduce((s, x) => s + (x.durationSeconds ?? 0), 0);
+                  const durPrev = prev.sets.reduce((s, x) => s + (x.durationSeconds ?? 0), 0);
+                  const d = durCurr - durPrev;
+                  if (Math.abs(d) >= 5) delta = d;
+                } else if (prev) {
+                  const d = l.weight - prev.weight;
+                  if (Math.abs(d) >= 0.5) delta = d;
+                }
+                const totalTime = l.sets.reduce((s, x) => s + (x.durationSeconds ?? 0), 0);
                 return (
                   <li key={i} className="rounded-md bg-white border border-ink-200 p-2 space-y-1.5">
                     {/* Header de la sesión */}
@@ -428,15 +460,15 @@ function ExerciseRow({
                             RPE {l.rpe}
                           </span>
                         )}
-                        {delta != null && Math.abs(delta) >= 0.5 && (
+                        {delta != null && (
                           <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold tabular-nums ${delta > 0 ? 'text-success' : 'text-danger'}`}>
                             {delta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                            {Math.abs(delta).toFixed(1)}kg
+                            {isTime ? formatSeconds(Math.abs(delta)) : `${Math.abs(delta).toFixed(1)}kg`}
                           </span>
                         )}
                       </div>
                       <span className="text-[10px] text-ink-400 tabular-nums">
-                        vol {l.volume}kg
+                        {isTime ? `total ${formatSeconds(totalTime)}` : `vol ${l.volume}kg`}
                       </span>
                     </div>
                     {/* Series individuales */}
@@ -452,7 +484,7 @@ function ExerciseRow({
                             </span>
                             <span className="font-semibold tabular-nums text-ink-900">
                               {isTime
-                                ? `${s.durationSeconds ?? 0}s`
+                                ? formatSeconds(s.durationSeconds ?? 0)
                                 : `${s.weight}kg × ${s.reps}`}
                             </span>
                             <CheckCircle2 className="w-3 h-3 text-success" />
@@ -485,13 +517,32 @@ function ExerciseRow({
 function LastSessionCard({
   last,
   suggestedWeight,
+  trackingType = 'reps',
+  suggestedDurationSeconds = null,
 }: {
-  last: { weight: number; reps: number; date: string; topSet: { w: number; r: number } | null; volume: number; rpe: number | null };
+  last: {
+    weight: number;
+    reps: number;
+    date: string;
+    topSet: { w: number; r: number } | null;
+    volume: number;
+    rpe: number | null;
+    /** Total de durationSeconds de las series de esta sesión. */
+    totalTimeSeconds?: number;
+  };
   suggestedWeight: number | null;
+  trackingType?: 'reps' | 'time';
+  suggestedDurationSeconds?: number | null;
 }) {
-  const daysAgo = Math.max(0, Math.round((Date.now() - new Date(last.date).getTime()) / 86400000));
+  // daysAgo se calcula con helper de TZ Lima (módulo client, pero la fecha
+  // ya viene en formato YYYY-MM-DD del servidor).
+  const daysAgo = Math.max(0, Math.round((Date.now() - new Date(last.date + 'T12:00:00').getTime()) / 86400000));
   const relative = daysAgo === 0 ? 'hoy' : daysAgo === 1 ? 'ayer' : `hace ${daysAgo} días`;
-  const surpassed = suggestedWeight && last.weight >= suggestedWeight;
+  const isTime = trackingType === 'time';
+  const totalTime = last.totalTimeSeconds ?? 0;
+  const surpassed = isTime
+    ? (suggestedDurationSeconds != null && totalTime >= suggestedDurationSeconds)
+    : (suggestedWeight != null && last.weight >= suggestedWeight);
 
   return (
     <div className={`rounded-lg p-2.5 border ${surpassed ? 'bg-success/5 border-success/30' : 'bg-white border-ink-200'}`}>
@@ -502,13 +553,17 @@ function LastSessionCard({
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
           <p className="text-base font-bold tabular-nums">
-            {last.topSet ? `${last.topSet.w}×${last.topSet.r}` : `${last.weight}kg`}
+            {isTime
+              ? (last.topSet && last.topSet.r > 0 ? formatSeconds(last.topSet.r) : formatSeconds(totalTime))
+              : (last.topSet ? `${last.topSet.w}×${last.topSet.r}` : `${last.weight}kg`)}
           </p>
-          <p className="text-[9px] text-ink-500 uppercase tracking-wider">Top set</p>
+          <p className="text-[9px] text-ink-500 uppercase tracking-wider">{isTime ? 'Top set' : 'Top set'}</p>
         </div>
         <div>
-          <p className="text-base font-bold tabular-nums">{last.volume}</p>
-          <p className="text-[9px] text-ink-500 uppercase tracking-wider">Volumen</p>
+          <p className="text-base font-bold tabular-nums">
+            {isTime ? formatSeconds(totalTime) : last.volume}
+          </p>
+          <p className="text-[9px] text-ink-500 uppercase tracking-wider">{isTime ? 'Total' : 'Volumen'}</p>
         </div>
         <div>
           <p className="text-base font-bold tabular-nums">{last.rpe ?? '—'}</p>
@@ -517,19 +572,10 @@ function LastSessionCard({
       </div>
       {surpassed && (
         <p className="text-[10px] text-success text-center mt-1.5 inline-flex items-center gap-1 w-full justify-center">
-          <CheckCircle2 className="w-3 h-3" /> Superaste la meta ({suggestedWeight}kg)
+          <CheckCircle2 className="w-3 h-3" /> Superaste la meta
+          {isTime ? ` (${formatSeconds(suggestedDurationSeconds ?? 0)})` : ` (${suggestedWeight}kg)`}
         </p>
       )}
     </div>
   );
-}
-/** Formatea segundos como "30s" / "1:30" / "2:00:00". */
-function formatSeconds(totalSeconds: number): string {
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  if (m < 60) return s > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${m}:00`;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${h}:${String(mm).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }

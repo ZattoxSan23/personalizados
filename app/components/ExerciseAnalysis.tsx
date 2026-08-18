@@ -7,6 +7,7 @@ import {
 import {
   Trophy, TrendingUp, Loader2, Activity, ChevronDown, ChevronUp, Calendar, CheckCircle2, AlertCircle,
 } from 'lucide-react';
+import { formatSeconds } from '@/lib/format';
 
 interface ExerciseSummary {
   routineExerciseId: string;
@@ -24,6 +25,7 @@ interface ExerciseSummary {
   }>;
   prsByRepRange: Record<number, number>;
   allTimePR: { weight: number; reps: number; date: string | null } | null;
+  allTimePRDurationSeconds?: number | null;
   lastSession: {
     id: string;
     date: string;
@@ -32,6 +34,8 @@ interface ExerciseSummary {
     setsCompleted: number;
     totalSets: number;
     topSet: { w: number; r: number } | null;
+    topSetDurationSeconds?: number | null;
+    totalTimeSeconds: number;
     rpe: number | null;
   } | null;
   totalSessions: number;
@@ -42,6 +46,10 @@ interface Props {
     routineExerciseId: string;
     nameEs: string;
     suggestedWeight: number | null;
+    /** 'reps' = peso × reps; 'time' = segundos por serie. */
+    trackingType?: 'reps' | 'time';
+    /** Duración objetivo en segundos (solo para trackingType='time'). */
+    suggestedDurationSeconds?: number | null;
   }>;
   /** Endpoint del que se obtiene el análisis per-ejercicio. */
   apiBase?: string;
@@ -69,6 +77,7 @@ export default function ExerciseAnalysis({
           sessions: data.sessions ?? [],
           prsByRepRange: data.prsByRepRange ?? {},
           allTimePR: data.allTimePR ?? null,
+          allTimePRDurationSeconds: data.allTimePRDurationSeconds ?? null,
           lastSession: data.lastSession ?? null,
           totalSessions: data.totalSessions ?? 0,
         };
@@ -146,7 +155,13 @@ function ExerciseRow({
   expanded,
   onToggle,
 }: {
-  exercise: { routineExerciseId: string; nameEs: string; suggestedWeight: number | null };
+  exercise: {
+  routineExerciseId: string;
+  nameEs: string;
+  suggestedWeight: number | null;
+  trackingType?: 'reps' | 'time';
+  suggestedDurationSeconds?: number | null;
+};
   analysis: ExerciseSummary | null;
   loading: boolean;
   expanded: boolean;
@@ -166,11 +181,21 @@ function ExerciseRow({
           <div className="flex items-center gap-3 text-xs text-ink-500 mt-0.5 flex-wrap">
             {analysis ? (
               <>
-                {analysis.allTimePR && analysis.allTimePR.weight > 0 && (
+                {/* PR por reps (si hay peso) */}
+                {analysis.allTimePR && analysis.allTimePR.weight > 0 && exercise.trackingType !== 'time' && (
                   <span className="inline-flex items-center gap-0.5">
                     <Trophy className="w-3 h-3 text-amber-600" />
                     <span className="tabular-nums font-semibold text-ink-700">
                       {analysis.allTimePR.weight}×{analysis.allTimePR.reps}
+                    </span>
+                  </span>
+                )}
+                {/* PR por tiempo */}
+                {exercise.trackingType === 'time' && analysis.allTimePRDurationSeconds != null && analysis.allTimePRDurationSeconds > 0 && (
+                  <span className="inline-flex items-center gap-0.5">
+                    <Trophy className="w-3 h-3 text-amber-600" />
+                    <span className="tabular-nums font-semibold text-ink-700">
+                      {formatSeconds(analysis.allTimePRDurationSeconds)}
                     </span>
                   </span>
                 )}
@@ -215,6 +240,8 @@ function ExerciseRow({
             <LastSessionBreakdown
               lastSession={analysis.lastSession}
               suggestedWeight={exercise.suggestedWeight}
+              trackingType={exercise.trackingType ?? 'reps'}
+              suggestedDurationSeconds={exercise.suggestedDurationSeconds}
             />
           </div>
           <ConsistencyMetrics sessions={analysis.sessions} />
@@ -385,9 +412,13 @@ function PRHeatmap({
 function LastSessionBreakdown({
   lastSession,
   suggestedWeight,
+  trackingType = 'reps',
+  suggestedDurationSeconds = null,
 }: {
   lastSession: ExerciseSummary['lastSession'];
   suggestedWeight: number | null;
+  trackingType?: 'reps' | 'time';
+  suggestedDurationSeconds?: number | null;
 }) {
   if (!lastSession) {
     return (
@@ -399,9 +430,14 @@ function LastSessionBreakdown({
 
   const total = lastSession.totalSets || lastSession.setsCompleted || 1;
   const adherence = (lastSession.setsCompleted / total) * 100;
-  const aboveTarget = lastSession.topSet && suggestedWeight
-    ? lastSession.topSet.w >= suggestedWeight
-    : null;
+  // aboveTarget: para reps usa peso×meta; para tiempo usa duración vs meta
+  const aboveTarget = trackingType === 'time'
+    ? (lastSession.topSetDurationSeconds != null && suggestedDurationSeconds != null
+        && lastSession.topSetDurationSeconds >= suggestedDurationSeconds)
+    : (lastSession.topSet && suggestedWeight
+        ? lastSession.topSet.w >= suggestedWeight
+        : null);
+  const isTime = trackingType === 'time';
 
   return (
     <div className="bg-ink-50 rounded-lg p-2 space-y-2">
@@ -414,13 +450,28 @@ function LastSessionBreakdown({
       <div className="grid grid-cols-2 gap-2 text-center">
         <div>
           <p className="text-base font-bold tabular-nums">
-            {lastSession.topSet ? `${lastSession.topSet.w}×${lastSession.topSet.r}` : '—'}
+            {isTime
+              ? (lastSession.topSetDurationSeconds != null && lastSession.topSetDurationSeconds > 0
+                  ? formatSeconds(lastSession.topSetDurationSeconds)
+                  : '—')
+              : (lastSession.topSet ? `${lastSession.topSet.w}×${lastSession.topSet.r}` : '—')}
           </p>
-          <p className="text-[9px] text-ink-500 uppercase">Top set</p>
+          <p className="text-[9px] text-ink-500 uppercase">{isTime ? 'Top duración' : 'Top set'}</p>
         </div>
         <div>
-          <p className="text-base font-bold tabular-nums">{lastSession.volume}</p>
-          <p className="text-[9px] text-ink-500 uppercase">Volumen</p>
+          {isTime ? (
+            <>
+              <p className="text-base font-bold tabular-nums">
+                {formatSeconds(lastSession.totalTimeSeconds)}
+              </p>
+              <p className="text-[9px] text-ink-500 uppercase">Total</p>
+            </>
+          ) : (
+            <>
+              <p className="text-base font-bold tabular-nums">{lastSession.volume}</p>
+              <p className="text-[9px] text-ink-500 uppercase">Volumen</p>
+            </>
+          )}
         </div>
       </div>
       <div>
@@ -439,17 +490,25 @@ function LastSessionBreakdown({
           />
         </div>
       </div>
-      {suggestedWeight && (
+      {((!isTime && suggestedWeight) || (isTime && suggestedDurationSeconds)) && (
         <p className="text-[10px] text-ink-600 text-center inline-flex items-center justify-center gap-1 w-full">
           {aboveTarget ? (
             <>
               <CheckCircle2 className="w-3 h-3 text-success" />
-              <span>Top set alcanza meta ({suggestedWeight}kg)</span>
+              <span>
+                {isTime
+                  ? `Top alcanza meta (${formatSeconds(suggestedDurationSeconds ?? 0)})`
+                  : `Top set alcanza meta (${suggestedWeight}kg)`}
+              </span>
             </>
           ) : (
             <>
               <AlertCircle className="w-3 h-3 text-warning" />
-              <span>Bajo meta ({suggestedWeight}kg)</span>
+              <span>
+                {isTime
+                  ? `Bajo meta (${formatSeconds(suggestedDurationSeconds ?? 0)})`
+                  : `Bajo meta (${suggestedWeight}kg)`}
+              </span>
             </>
           )}
         </p>
