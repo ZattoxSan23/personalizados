@@ -24,6 +24,7 @@ type Exercise = {
   prWeight: number;
   lastWeight: number | null;
   lastReps: number | null;
+  lastDurationSeconds: number | null;
   lastVolume: number;
   lastRpe: number | null;
   lastDate: string | null;
@@ -194,8 +195,14 @@ function Stat({ label, value, icon: Icon }: { label: string; value: string; icon
 
 function ExerciseCard({ ex, idx }: { ex: Exercise; idx: number }) {
   const color = MUSCLE_COLOR[ex.muscleGroup ?? ''] ?? '#94a3b8';
-  const hasLog = ex.lastWeight != null && ex.lastWeight > 0;
-  const surpassed = Boolean(hasLog && ex.weightKg && ex.lastWeight && ex.lastWeight >= Number(ex.weightKg));
+  // hasLog: true si hay datos útiles (peso o duración según tipo)
+  const hasLog = ex.trackingType === 'time'
+    ? (ex.lastDurationSeconds != null && ex.lastDurationSeconds > 0)
+    : (ex.lastWeight != null && ex.lastWeight > 0);
+  // surpassed: comparación correcta según trackingType
+  const surpassed = ex.trackingType === 'time'
+    ? Boolean(hasLog && ex.durationSeconds && ex.lastDurationSeconds && ex.lastDurationSeconds >= ex.durationSeconds)
+    : Boolean(hasLog && ex.weightKg && ex.lastWeight && ex.lastWeight >= Number(ex.weightKg));
 
   return (
     <article className={`card space-y-3 ${surpassed ? 'border-success/40 bg-success/5' : ''}`}>
@@ -279,22 +286,40 @@ function LastLogBlock({ ex, surpassed }: { ex: Exercise; surpassed: boolean }) {
       <div className="grid grid-cols-3 gap-2 text-center bg-ink-50 rounded-lg p-2">
         <div>
           <p className="text-base font-bold tabular-nums text-ink-900">
-            {ex.lastWeight}{ex.lastReps ? <span className="text-ink-400 text-sm">×{ex.lastReps}</span> : <span className="text-ink-400 text-sm">kg</span>}
+            {/* Ejercicio por tiempo: mostrar duración (segs o mins).
+                Ejercicio por reps: mostrar peso × reps. */}
+            {ex.trackingType === 'time' ? (
+              <span>{formatDuration(ex.lastDurationSeconds ?? 0)}</span>
+            ) : ex.lastReps ? (
+              <>
+                {ex.lastWeight}
+                <span className="text-ink-400 text-sm">×{ex.lastReps}</span>
+              </>
+            ) : (
+              <span>{ex.lastWeight}<span className="text-ink-400 text-sm">kg</span></span>
+            )}
           </p>
-          <p className="text-[9px] text-ink-500 uppercase tracking-wider">Top set</p>
+          <p className="text-[9px] text-ink-500 uppercase tracking-wider">
+            {ex.trackingType === 'time' ? 'Duración' : 'Top set'}
+          </p>
         </div>
         <div>
           <p className="text-base font-bold tabular-nums text-ink-900">{ex.lastVolume}</p>
-          <p className="text-[9px] text-ink-500 uppercase tracking-wider">Volumen</p>
+          <p className="text-[9px] text-ink-500 uppercase tracking-wider">Volumen kg</p>
         </div>
         <div>
           <p className="text-base font-bold tabular-nums text-ink-900">{ex.lastRpe ?? '—'}</p>
           <p className="text-[9px] text-ink-500 uppercase tracking-wider">RPE</p>
         </div>
       </div>
-      {surpassed && ex.weightKg && (
+      {surpassed && (ex.trackingType === 'time'
+        ? ex.durationSeconds
+        : ex.weightKg) && (
         <p className="text-[10px] text-success text-center inline-flex items-center justify-center gap-1 w-full">
-          <CheckCircle2 className="w-3 h-3" /> Superaste la meta de {ex.weightKg}kg
+          <CheckCircle2 className="w-3 h-3" /> Superaste la meta de{' '}
+          {ex.trackingType === 'time'
+            ? formatDuration(ex.durationSeconds ?? 0)
+            : `${ex.weightKg}kg`}
         </p>
       )}
     </div>
@@ -331,4 +356,17 @@ function RestDayCard() {
       </ul>
     </div>
   );
+}
+/** Formatea segundos como "30s" / "1:30" / "20 min". */
+function formatDuration(totalSeconds: number): string {
+  if (!totalSeconds || totalSeconds <= 0) return '—';
+  if (totalSeconds >= 60 && totalSeconds % 60 === 0) {
+    return `${totalSeconds / 60} min`;
+  }
+  if (totalSeconds >= 60) {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+  return `${totalSeconds}s`;
 }

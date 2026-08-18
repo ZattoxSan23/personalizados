@@ -26,6 +26,7 @@ type ExerciseForUI = {
   prWeight: number;
   lastWeight: number | null;
   lastReps: number | null;
+  lastDurationSeconds: number | null;
   lastVolume: number;
   lastRpe: number | null;
   lastDate: string | null;
@@ -72,7 +73,7 @@ export default async function HoyPage() {
 
       const reIds = rows.map((r) => r.routineExerciseId);
       let logsByRe: Record<string, Array<{
-        weight: number; reps: number; date: string; volume: number; rpe: number | null;
+        weight: number; reps: number; durationSeconds: number | null; date: string; volume: number; rpe: number | null;
       }>> = {};
 
       if (reIds.length > 0) {
@@ -82,6 +83,7 @@ export default async function HoyPage() {
             routineExerciseId: exerciseLogs.routineExerciseId,
             topSetWeightKg: exerciseLogs.topSetWeightKg,
             topSetReps: exerciseLogs.topSetReps,
+            topSetDurationSeconds: exerciseLogs.topSetDurationSeconds,
             sets: exerciseLogs.sets,
             performedAt: exerciseLogs.performedAt,
             rpe: exerciseLogs.rpe,
@@ -98,13 +100,15 @@ export default async function HoyPage() {
           const list = logsByRe[log.routineExerciseId] ?? [];
           if (list.length >= 8) continue;
           const w = log.topSetWeightKg ? Number(log.topSetWeightKg) : 0;
-          const r = log.topSetReps; // puede ser null si el ejercicio es por tiempo
+          const r = log.topSetReps; // null para ejercicios por tiempo
+          const d = log.topSetDurationSeconds ?? null; // null para ejercicios por reps
           const sets = (log.sets ?? []) as Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
           const completed = sets.filter((s) => s.completed);
           const volume = completed.reduce((sum, s) => sum + s.weight * s.reps, 0);
           list.push({
             weight: w,
             reps: r ?? 0,
+            durationSeconds: d,
             // ⚠️ Fecha del log en zona horaria Lima (no UTC del servidor).
             date: toLimaDateString(log.performedAt),
             volume: Math.round(volume),
@@ -120,15 +124,26 @@ export default async function HoyPage() {
         const prev = history[history.length - 2];
         const series = history.map((l) => l.weight).filter((w) => w > 0);
         const prWeight = series.length > 0 ? Math.max(...series) : 0;
+        // Trend: para ejercicios por tiempo, comparar duración; para reps, comparar peso
+        let trend: number | null = null;
+        if (last && prev) {
+          if (row.trackingType === 'time' && last.durationSeconds != null && prev.durationSeconds != null) {
+            const t = last.durationSeconds - prev.durationSeconds;
+            if (Math.abs(t) >= 5) trend = +t.toFixed(0);
+          } else if (row.trackingType !== 'time' && Math.abs(last.weight - prev.weight) >= 0.5) {
+            trend = +(last.weight - prev.weight).toFixed(2);
+          }
+        }
         return {
           ...row,
           prWeight,
           lastWeight: last?.weight ?? null,
           lastReps: last?.reps ?? null,
+          lastDurationSeconds: last?.durationSeconds ?? null,
           lastVolume: last?.volume ?? 0,
           lastRpe: last?.rpe ?? null,
           lastDate: last?.date ?? null,
-          trend: last && prev && Math.abs(last.weight - prev.weight) >= 0.5 ? +(last.weight - prev.weight).toFixed(2) : null,
+          trend,
           history: series,
         };
       });
