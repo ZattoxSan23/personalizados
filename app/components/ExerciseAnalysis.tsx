@@ -98,6 +98,19 @@ export default function ExerciseAnalysis({
     });
   }
 
+  // Auto-cargar todos los análisis al montar para que el cliente vea las
+  // métricas (PR, sesiones, tendencia) sin tener que expandir cada tarjeta.
+  // Si la lista es grande (>8 ejercicios) igual disparamos todos en paralelo;
+  // es lo que el cliente espera ver de un vistazo.
+  useEffect(() => {
+    for (const e of exercises) {
+      if (!analyses.has(e.routineExerciseId) && !loadingMap.has(e.routineExerciseId)) {
+        loadAnalysis(e.routineExerciseId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercises]);
+
   if (exercises.length === 0) {
     return (
       <div className="empty-state">
