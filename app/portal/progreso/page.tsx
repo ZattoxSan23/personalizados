@@ -51,7 +51,14 @@ function cmUpMessage(delta: number | null, name: string): string {
   if (Math.abs(delta) < 0.5) return `${name} estable.`;
   return `${name} -${Math.abs(delta).toFixed(1)} cm.`;
 }
-function muscleDatum(delta: number | null, label: string, msg: string, hasData: boolean): MuscleDatum {
+function muscleDatum(
+  delta: number | null,
+  label: string,
+  msg: string,
+  hasData: boolean,
+  currentValue: number | null = null,
+  unit = 'cm',
+): MuscleDatum {
   let trend: MuscleTrend = 'flat';
   if (hasData && delta != null) {
     if (Math.abs(delta) >= 0.5) trend = delta > 0 ? 'up' : 'down';
@@ -61,6 +68,8 @@ function muscleDatum(delta: number | null, label: string, msg: string, hasData: 
     trend,
     delta,
     label,
+    currentValue,
+    unit,
     message: msg,
     hasData,
   };
@@ -159,16 +168,18 @@ export default async function ProgresoPage() {
   const series = (key: 'weightKg' | 'bodyFatPct' | 'waistCm' | 'chestCm' | 'bicepFlexCm' | 'thighCm' | 'shoulderCm') =>
     [...entries].reverse().map((e) => NUM(e[key])).filter((v): v is number => v != null);
 
-  // Datos para HumanBodySVG
+  // Datos para HumanBodySVG. Si solo hay 1 medición (no hay mes pasado para
+  // comparar), pasamos currentValue para mostrar el valor absoluto en el UI.
   const muscleData: Partial<Record<MuscleKey, MuscleDatum>> = {
     pecho: muscleDatum(
       chestDelta,
       chestDelta != null ? `${chestDelta > 0 ? '+' : ''}${chestDelta.toFixed(1)} cm` : '—',
       cmUpMessage(chestDelta, 'Pecho'),
-      chestDelta != null,
+      chestDelta != null || chestCurr != null,
+      chestCurr,
     ),
     espalda: muscleDatum(
-      null, // sin medida directa
+      null,
       '—',
       'La espalda no se mide directo aún. Usa la ropa: si te queda mejor, estás ganando espalda 💪',
       false,
@@ -177,25 +188,29 @@ export default async function ProgresoPage() {
       thighDelta,
       thighDelta != null ? `${thighDelta > 0 ? '+' : ''}${thighDelta.toFixed(1)} cm` : '—',
       cmUpMessage(thighDelta, 'Muslo'),
-      thighDelta != null,
+      thighDelta != null || thighCurr != null,
+      thighCurr,
     ),
     hombro: muscleDatum(
       shoulderDelta,
       shoulderDelta != null ? `${shoulderDelta > 0 ? '+' : ''}${shoulderDelta.toFixed(1)} cm` : '—',
       cmUpMessage(shoulderDelta, 'Hombro'),
-      shoulderDelta != null,
+      shoulderDelta != null || shoulderCurr != null,
+      shoulderCurr,
     ),
     brazo: muscleDatum(
       bicepDelta,
       bicepDelta != null ? `${bicepDelta > 0 ? '+' : ''}${bicepDelta.toFixed(1)} cm` : '—',
       cmUpMessage(bicepDelta, 'Bícep'),
-      bicepDelta != null,
+      bicepDelta != null || bicepCurr != null,
+      bicepCurr,
     ),
     core: muscleDatum(
       waistDelta,
       waistDelta != null ? `${waistDelta > 0 ? '+' : ''}${waistDelta.toFixed(1)} cm` : '—',
       waistMessage(waistDelta),
-      waistDelta != null,
+      waistDelta != null || waistCurr != null,
+      waistCurr,
     ),
   };
 

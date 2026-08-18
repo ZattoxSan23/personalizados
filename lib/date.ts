@@ -94,3 +94,27 @@ export function todayLabelLima(d: Date = new Date()): string {
     month: 'long',
   }).format(d);
 }
+
+/**
+ * Diferencia en DÍAS entre una fecha (YYYY-MM-DD en zona Lima) y hoy (Lima).
+ * Devuelve 0 si es hoy, 1 si fue ayer, etc. Robusto contra horas UTC.
+ */
+export function daysAgoInLima(dateStr: string | null | undefined, refDate: Date = new Date()): number | null {
+  if (!dateStr) return null;
+  // dateStr está en formato YYYY-MM-DD. Comparamos contra hoy en Lima.
+  const today = todayKeyInLima(refDate);
+  if (dateStr === today) return 0;
+  // Calcular días entre fechas (ambos YYYY-MM-DD son comparables lexicográficamente)
+  const a = Date.UTC(
+    parseInt(dateStr.slice(0, 4), 10),
+    parseInt(dateStr.slice(5, 7), 10) - 1,
+    parseInt(dateStr.slice(8, 10), 10),
+  );
+  const b = Date.UTC(
+    parseInt(today.slice(0, 4), 10),
+    parseInt(today.slice(5, 7), 10) - 1,
+    parseInt(today.slice(8, 10), 10),
+  );
+  const diff = Math.round((b - a) / 86400000);
+  return diff >= 0 ? diff : null;
+}

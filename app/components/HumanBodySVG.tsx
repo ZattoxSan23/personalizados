@@ -11,6 +11,8 @@ export interface MuscleDatum {
   trend: MuscleTrend;
   delta: number | null;
   label: string;
+  currentValue: number | null;
+  unit: string;
   message: string;
   hasData: boolean;
 }
@@ -29,10 +31,10 @@ const MUSCLE_LABEL: Record<MuscleKey, string> = {
 };
 
 const TREND_COLORS = {
-  up: { fill: '#22c55e', soft: '#86efac', border: '#15803d', label: 'mejoró' },
-  down: { fill: '#3b82f6', soft: '#93c5fd', border: '#1d4ed8', label: 'mejoró (a menor)' },
-  flat: { fill: '#fbbf24', soft: '#fde68a', border: '#b45309', label: 'igual' },
-  unknown: { fill: '#e5e7eb', soft: '#f3f4f6', border: '#9ca3af', label: 'sin datos' },
+  up:   { fill: '#22c55e', soft: '#bbf7d0', border: '#15803d' },
+  down: { fill: '#3b82f6', soft: '#bfdbfe', border: '#1d4ed8' },
+  flat: { fill: '#fbbf24', soft: '#fde68a', border: '#b45309' },
+  unknown: { fill: '#e5e7eb', soft: '#f3f4f6', border: '#9ca3af' },
 } as const;
 
 function colors(trend: MuscleTrend, hasData: boolean) {
@@ -58,7 +60,7 @@ export default function HumanBodySVG({ data }: HumanBodySVGProps) {
             type="button"
             onClick={() => setView('front')}
             className={`px-3 py-1.5 rounded-full transition-colors ${
-              view === 'front' ? 'bg-white shadow-xs text-primary-700' : 'text-ink-500'
+              view === 'front' ? 'bg-white shadow-xs text-primary-700' :'text-ink-500'
             }`}
           >
             Vista frontal
@@ -67,7 +69,7 @@ export default function HumanBodySVG({ data }: HumanBodySVGProps) {
             type="button"
             onClick={() => setView('back')}
             className={`px-3 py-1.5 rounded-full transition-colors inline-flex items-center gap-1 ${
-              view === 'back' ? 'bg-white shadow-xs text-primary-700' : 'text-ink-500'
+              view === 'back' ? 'bg-white shadow-xs text-primary-700' :'text-ink-500'
             }`}
           >
             <RotateCw className="w-3 h-3" />
@@ -76,16 +78,35 @@ export default function HumanBodySVG({ data }: HumanBodySVGProps) {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-[240px_1fr] gap-6 items-start">
+      <div className="grid md:grid-cols-[260px_1fr] gap-6 items-start">
         {/* SVG anatómico */}
-        <div className="relative mx-auto" style={{ maxWidth: 220 }}>
+        <div className="relative mx-auto" style={{ maxWidth: 240 }}>
           <svg
-            viewBox="0 0 200 460"
+            viewBox="0 0 200 480"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-auto drop-shadow-sm"
+            className="w-full h-auto"
             aria-label="Diagrama corporal de mejoras"
           >
-            {view === 'front' ? <FrontView data={data} onActive={setActive} active={active} /> : <BackView data={data} onActive={setActive} active={active} />}
+            <defs>
+              <linearGradient id="skinFront" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#fcd9b6" />
+                <stop offset="100%" stopColor="#f5b78a" />
+              </linearGradient>
+              <linearGradient id="skinBack" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#fcd9b6" />
+                <stop offset="100%" stopColor="#f5b78a" />
+              </linearGradient>
+              <radialGradient id="muscleShade" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="rgba(0,0,0,0)" />
+                <stop offset="100%" stopColor="rgba(0,0,0,0.15)" />
+              </radialGradient>
+            </defs>
+
+            {view === 'front' ? (
+              <FrontView data={data} onActive={setActive} active={active} />
+            ) : (
+              <BackView data={data} onActive={setActive} active={active} />
+            )}
           </svg>
 
           {/* Leyenda */}
@@ -119,6 +140,9 @@ export default function HumanBodySVG({ data }: HumanBodySVGProps) {
               const d = data[key];
               if (!d) return null;
               const c = colors(d.trend, d.hasData);
+              const displayLabel = d.hasData
+                ? (d.delta != null ? d.label : `${d.currentValue?.toFixed(1)}${d.unit}`)
+                : '—';
               return (
                 <button
                   key={key}
@@ -139,7 +163,7 @@ export default function HumanBodySVG({ data }: HumanBodySVGProps) {
                   />
                   <span className="font-medium text-ink-700">{MUSCLE_LABEL[key]}</span>
                   <span className="ml-auto tabular-nums text-[10px] text-ink-500">
-                    {d.hasData ? d.label : '—'}
+                    {displayLabel}
                   </span>
                 </button>
               );
@@ -169,301 +193,363 @@ interface ViewProps {
   active: MuscleKey | null;
 }
 
+function muscle(d: Partial<Record<MuscleKey, MuscleDatum>>, k: MuscleKey) {
+  const dat = d[k];
+  return colors(dat?.trend ?? 'unknown', !!dat?.hasData);
+}
+function op(d: Partial<Record<MuscleKey, MuscleDatum>>, k: MuscleKey, active: MuscleKey | null) {
+  return active === k ? 0.85 : 1;
+}
+function cursor(d: Partial<Record<MuscleKey, MuscleDatum>>, k: MuscleKey) {
+  return d[k]?.hasData ? 'cursor-pointer transition-opacity' : 'cursor-default opacity-70';
+}
+
 function FrontView({ data, onActive, active }: ViewProps) {
-  const c = (k: MuscleKey) => colors(data[k]?.trend ?? 'unknown', !!data[k]?.hasData);
-  const op = (k: MuscleKey) => active === k ? 0.85 : 1;
+  const c = (k: MuscleKey) => muscle(data, k);
+  const o = (k: MuscleKey) => op(data, k, active);
+  const cur = (k: MuscleKey) => cursor(data, k);
 
   return (
     <g>
-      {/* Cuerpo base (silueta) */}
-      <defs>
-        <linearGradient id="bodyBaseFront" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#fde68a" />
-          <stop offset="100%" stopColor="#fcd34d" />
-        </linearGradient>
-      </defs>
+      {/* Sombra base del cuerpo (silueta neutral) */}
+      <ellipse cx="100" cy="455" rx="55" ry="6" fill="rgba(0,0,0,0.15)" />
 
       {/* Cabeza */}
-      <ellipse cx="100" cy="32" rx="22" ry="26" fill="url(#bodyBaseFront)" stroke="#92400e" strokeWidth="1.2" />
+      <ellipse cx="100" cy="32" rx="22" ry="27" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="1.2" />
+      {/* Pelo */}
+      <path d="M78 22 Q100 8 122 22 Q120 14 100 12 Q80 14 78 22 Z" fill="#3a2418" />
+      {/* Orejas */}
+      <ellipse cx="77" cy="36" rx="3" ry="5" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="0.8" />
+      <ellipse cx="123" cy="36" rx="3" ry="5" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="0.8" />
       {/* Cuello */}
-      <path d="M85 56 Q100 62 115 56 L115 70 L85 70 Z" fill="#fde68a" stroke="#92400e" strokeWidth="1" />
+      <path d="M85 56 Q100 64 115 56 L116 76 L84 76 Z" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="1" />
+      <line x1="92" y1="68" x2="108" y2="68" stroke="#a86b3d" strokeWidth="0.5" opacity="0.5" />
 
-      {/* Hombros */}
+      {/* Trapecio frontal */}
+      <path d="M82 76 L118 76 L116 88 Q100 92 84 88 Z" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="1" />
+
+      {/* Hombros (deltoides) */}
       <path
-        id="front-hombro-izq"
-        d="M40 78 Q60 70 85 75 L88 92 Q60 95 45 95 Z"
+        d="M48 84 Q70 76 86 80 L92 102 Q72 108 50 106 Z"
         fill={c('hombro').fill}
         stroke={c('hombro').border}
         strokeWidth="1.2"
-        opacity={op('hombro')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('hombro')}
+        className={cur('hombro')}
         onMouseEnter={() => onActive('hombro')}
         onMouseLeave={() => onActive(null)}
       />
       <path
-        id="front-hombro-der"
-        d="M160 78 Q140 70 115 75 L112 92 Q140 95 155 95 Z"
+        d="M152 84 Q130 76 114 80 L108 102 Q128 108 150 106 Z"
         fill={c('hombro').fill}
         stroke={c('hombro').border}
         strokeWidth="1.2"
-        opacity={op('hombro')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('hombro')}
+        className={cur('hombro')}
         onMouseEnter={() => onActive('hombro')}
         onMouseLeave={() => onActive(null)}
       />
 
       {/* Pecho (pectorales) */}
       <path
-        id="front-pecho-izq"
-        d="M62 95 Q80 92 100 95 Q100 130 80 138 Q60 134 58 110 Z"
+        d="M70 100 Q88 96 100 100 Q100 132 88 144 Q72 142 64 120 Z"
         fill={c('pecho').fill}
         stroke={c('pecho').border}
         strokeWidth="1.2"
-        opacity={op('pecho')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('pecho')}
+        className={cur('pecho')}
         onMouseEnter={() => onActive('pecho')}
         onMouseLeave={() => onActive(null)}
       />
       <path
-        id="front-pecho-der"
-        d="M138 95 Q120 92 100 95 Q100 130 120 138 Q140 134 142 110 Z"
+        d="M130 100 Q112 96 100 100 Q100 132 112 144 Q128 142 136 120 Z"
         fill={c('pecho').fill}
         stroke={c('pecho').border}
         strokeWidth="1.2"
-        opacity={op('pecho')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('pecho')}
+        className={cur('pecho')}
         onMouseEnter={() => onActive('pecho')}
         onMouseLeave={() => onActive(null)}
       />
 
-      {/* Línea central del torso */}
-      <line x1="100" y1="95" x2="100" y2="200" stroke="#92400e" strokeWidth="0.6" opacity="0.3" />
+      {/* Línea central (esternón) */}
+      <line x1="100" y1="100" x2="100" y2="144" stroke={c('pecho').border} strokeWidth="0.5" opacity="0.4" />
 
       {/* Core / Abdominales */}
       <path
-        id="front-core"
-        d="M62 138 Q100 145 138 138 L135 200 Q100 210 65 200 Z"
+        d="M68 144 Q100 150 132 144 L130 220 Q100 230 70 220 Z"
         fill={c('core').fill}
         stroke={c('core').border}
         strokeWidth="1.2"
-        opacity={op('core')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('core')}
+        className={cur('core')}
         onMouseEnter={() => onActive('core')}
         onMouseLeave={() => onActive(null)}
       />
-
-      {/* Líneas de abdominales (six-pack sutil) */}
-      <g opacity="0.25" stroke="#92400e" strokeWidth="0.5">
-        <line x1="80" y1="150" x2="120" y2="150" />
-        <line x1="78" y1="165" x2="122" y2="165" />
-        <line x1="80" y1="180" x2="120" y2="180" />
-        <line x1="100" y1="145" x2="100" y2="195" />
+      {/* Líneas de six-pack */}
+      <g opacity="0.4" stroke="#92400e" strokeWidth="0.7">
+        <line x1="80" y1="160" x2="120" y2="160" />
+        <line x1="78" y1="178" x2="122" y2="178" />
+        <line x1="80" y1="196" x2="120" y2="196" />
+        <line x1="100" y1="150" x2="100" y2="215" />
       </g>
 
-      {/* Brazos (bíceps frontal) */}
+      {/* Línea alba */}
+      <line x1="100" y1="144" x2="100" y2="220" stroke={c('core').border} strokeWidth="0.5" opacity="0.3" />
+
+      {/* Bíceps (brazos frontales) */}
       <path
-        id="front-brazo-izq"
-        d="M40 78 L52 78 Q45 130 48 175 L36 178 Q28 130 30 85 Z"
+        d="M50 106 Q62 102 70 110 Q70 140 64 165 L 50 168 Q44 140 42 110 Z"
         fill={c('brazo').fill}
         stroke={c('brazo').border}
         strokeWidth="1.2"
-        opacity={op('brazo')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('brazo')}
+        className={cur('brazo')}
         onMouseEnter={() => onActive('brazo')}
         onMouseLeave={() => onActive(null)}
       />
       <path
-        id="front-brazo-der"
-        d="M160 78 L148 78 Q155 130 152 175 L164 178 Q172 130 170 85 Z"
+        d="M150 106 Q138 102 130 110 Q130 140 136 165 L 150 168 Q156 140 158 110 Z"
         fill={c('brazo').fill}
         stroke={c('brazo').border}
         strokeWidth="1.2"
-        opacity={op('brazo')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('brazo')}
+        className={cur('brazo')}
+        onMouseEnter={() => onActive('brazo')}
+        onMouseLeave={() => onActive(null)}
+      />
+      {/* Bíceps detalle (línea de definición) */}
+      <path d="M55 125 Q58 140 56 155" fill="none" stroke={c('brazo').border} strokeWidth="0.4" opacity="0.4" />
+      <path d="M145 125 Q142 140 144 155" fill="none" stroke={c('brazo').border} strokeWidth="0.4" opacity="0.4" />
+
+      {/* Antebrazos */}
+      <path
+        d="M50 168 Q56 168 64 165 L 60 200 Q52 204 46 200 L 44 174 Z"
+        fill={c('brazo').soft}
+        stroke={c('brazo').border}
+        strokeWidth="1"
+        opacity={o('brazo')}
+        className={cur('brazo')}
+        onMouseEnter={() => onActive('brazo')}
+        onMouseLeave={() => onActive(null)}
+      />
+      <path
+        d="M150 168 Q144 168 136 165 L 140 200 Q148 204 154 200 L 156 174 Z"
+        fill={c('brazo').soft}
+        stroke={c('brazo').border}
+        strokeWidth="1"
+        opacity={o('brazo')}
+        className={cur('brazo')}
         onMouseEnter={() => onActive('brazo')}
         onMouseLeave={() => onActive(null)}
       />
 
-      {/* Antebrazos */}
-      <ellipse cx="34" cy="195" rx="7" ry="22" fill={c('brazo').fill} stroke={c('brazo').border} strokeWidth="1" opacity={op('brazo')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('brazo')} onMouseLeave={() => onActive(null)} />
-      <ellipse cx="166" cy="195" rx="7" ry="22" fill={c('brazo').fill} stroke={c('brazo').border} strokeWidth="1" opacity={op('brazo')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('brazo')} onMouseLeave={() => onActive(null)} />
+      {/* Manos */}
+      <ellipse cx="50" cy="208" rx="6" ry="9" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="1" />
+      <ellipse cx="150" cy="208" rx="6" ry="9" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="1" />
 
       {/* Piernas (cuádriceps) */}
       <path
-        id="front-pierna-izq"
-        d="M68 200 Q80 205 95 200 L92 320 Q78 325 70 320 Z"
+        d="M68 220 Q80 224 94 222 L 92 320 Q78 326 70 322 L 66 270 Z"
         fill={c('pierna').fill}
         stroke={c('pierna').border}
         strokeWidth="1.2"
-        opacity={op('pierna')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('pierna')}
+        className={cur('pierna')}
         onMouseEnter={() => onActive('pierna')}
         onMouseLeave={() => onActive(null)}
       />
       <path
-        id="front-pierna-der"
-        d="M132 200 Q120 205 105 200 L108 320 Q122 325 130 320 Z"
+        d="M132 220 Q120 224 106 222 L 108 320 Q122 326 130 322 L 134 270 Z"
         fill={c('pierna').fill}
         stroke={c('pierna').border}
         strokeWidth="1.2"
-        opacity={op('pierna')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('pierna')}
+        className={cur('pierna')}
         onMouseEnter={() => onActive('pierna')}
         onMouseLeave={() => onActive(null)}
       />
-
-      {/* Cuádriceps detalle (línea sutil) */}
-      <path d="M75 215 Q80 260 78 305" fill="none" stroke={c('pierna').border} strokeWidth="0.5" opacity="0.4" />
-      <path d="M125 215 Q120 260 122 305" fill="none" stroke={c('pierna').border} strokeWidth="0.5" opacity="0.4" />
+      {/* Cuádriceps detalle */}
+      <path d="M76 240 Q78 280 76 310" fill="none" stroke={c('pierna').border} strokeWidth="0.5" opacity="0.4" />
+      <path d="M124 240 Q122 280 124 310" fill="none" stroke={c('pierna').border} strokeWidth="0.5" opacity="0.4" />
 
       {/* Pantorrillas */}
-      <ellipse cx="80" cy="370" rx="14" ry="38" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1" opacity={op('pierna')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
-      <ellipse cx="120" cy="370" rx="14" ry="38" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1" opacity={op('pierna')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+      <ellipse cx="80" cy="370" rx="14" ry="38" fill={c('pierna').soft} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+      <ellipse cx="120" cy="370" rx="14" ry="38" fill={c('pierna').soft} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+
+      {/* Tobillos */}
+      <ellipse cx="80" cy="420" rx="6" ry="10" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="0.8" />
+      <ellipse cx="120" cy="420" rx="6" ry="10" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="0.8" />
 
       {/* Pies */}
-      <ellipse cx="80" cy="430" rx="10" ry="6" fill="#fde68a" stroke="#92400e" strokeWidth="1" />
-      <ellipse cx="120" cy="430" rx="10" ry="6" fill="#fde68a" stroke="#92400e" strokeWidth="1" />
+      <ellipse cx="80" cy="442" rx="10" ry="6" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="0.8" />
+      <ellipse cx="120" cy="442" rx="10" ry="6" fill="url(#skinFront)" stroke="#a86b3d" strokeWidth="0.8" />
     </g>
   );
 }
 
 function BackView({ data, onActive, active }: ViewProps) {
-  const c = (k: MuscleKey) => colors(data[k]?.trend ?? 'unknown', !!data[k]?.hasData);
-  const op = (k: MuscleKey) => active === k ? 0.85 : 1;
+  const c = (k: MuscleKey) => muscle(data, k);
+  const o = (k: MuscleKey) => op(data, k, active);
+  const cur = (k: MuscleKey) => cursor(data, k);
 
   return (
     <g>
-      <defs>
-        <linearGradient id="bodyBaseBack" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#fde68a" />
-          <stop offset="100%" stopColor="#fcd34d" />
-        </linearGradient>
-      </defs>
+      <ellipse cx="100" cy="455" rx="55" ry="6" fill="rgba(0,0,0,0.15)" />
 
-      {/* Cabeza */}
-      <ellipse cx="100" cy="32" rx="22" ry="26" fill="url(#bodyBaseBack)" stroke="#92400e" strokeWidth="1.2" />
-      {/* Cuello */}
-      <path d="M85 56 Q100 62 115 56 L115 70 L85 70 Z" fill="#fde68a" stroke="#92400e" strokeWidth="1" />
+      {/* Cabeza (detrás) */}
+      <ellipse cx="100" cy="32" rx="22" ry="27" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="1.2" />
+      <path d="M78 22 Q100 8 122 22 Q120 14 100 12 Q80 14 78 22 Z" fill="#3a2418" />
+      <ellipse cx="77" cy="36" rx="3" ry="5" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="0.8" />
+      <ellipse cx="123" cy="36" rx="3" ry="5" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="0.8" />
 
-      {/* Hombros (traseros) */}
+      {/* Cuello posterior */}
+      <path d="M85 56 Q100 64 115 56 L116 76 L84 76 Z" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="1" />
+
+      {/* Trapecio superior */}
+      <path d="M82 76 L118 76 L116 100 Q100 106 84 100 Z" fill={c('espalda').soft} stroke={c('espalda').border} strokeWidth="1" opacity={o('espalda')} className={cur('espalda')} onMouseEnter={() => onActive('espalda')} onMouseLeave={() => onActive(null)} />
+
+      {/* Hombros (deltoides posteriores) */}
       <path
-        d="M40 78 Q60 70 85 75 L88 92 Q60 95 45 95 Z"
+        d="M48 84 Q70 76 86 80 L92 102 Q72 108 50 106 Z"
         fill={c('hombro').fill}
         stroke={c('hombro').border}
         strokeWidth="1.2"
-        opacity={op('hombro')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('hombro')}
+        className={cur('hombro')}
         onMouseEnter={() => onActive('hombro')}
         onMouseLeave={() => onActive(null)}
       />
       <path
-        d="M160 78 Q140 70 115 75 L112 92 Q140 95 155 95 Z"
+        d="M152 84 Q130 76 114 80 L108 102 Q128 108 150 106 Z"
         fill={c('hombro').fill}
         stroke={c('hombro').border}
         strokeWidth="1.2"
-        opacity={op('hombro')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('hombro')}
+        className={cur('hombro')}
         onMouseEnter={() => onActive('hombro')}
         onMouseLeave={() => onActive(null)}
       />
 
-      {/* Espalda (dorsal / trapecio) */}
+      {/* Dorsal ancho (lats) */}
       <path
-        id="back-espalda-sup"
-        d="M62 92 Q100 88 138 92 L138 130 Q100 138 62 130 Z"
+        d="M58 100 Q60 150 70 200 L 86 198 Q80 150 76 100 Z"
         fill={c('espalda').fill}
         stroke={c('espalda').border}
         strokeWidth="1.2"
-        opacity={op('espalda')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('espalda') * 0.9}
+        className={cur('espalda')}
         onMouseEnter={() => onActive('espalda')}
         onMouseLeave={() => onActive(null)}
       />
       <path
-        id="back-espalda-inf"
-        d="M68 132 Q100 138 132 132 L130 195 Q100 205 70 195 Z"
+        d="M142 100 Q140 150 130 200 L 114 198 Q120 150 124 100 Z"
         fill={c('espalda').fill}
         stroke={c('espalda').border}
         strokeWidth="1.2"
-        opacity={op('espalda')}
-        className="cursor-pointer transition-opacity"
+        opacity={o('espalda') * 0.9}
+        className={cur('espalda')}
         onMouseEnter={() => onActive('espalda')}
         onMouseLeave={() => onActive(null)}
       />
 
-      {/* Dorsal lateral (alas) */}
+      {/* Dorsal central (espalda media) */}
       <path
-        d="M55 110 Q60 140 65 175 L70 175 Q65 140 60 115 Z"
+        d="M76 100 L124 100 L122 195 Q100 200 78 195 Z"
         fill={c('espalda').soft}
         stroke={c('espalda').border}
         strokeWidth="1"
-        opacity={op('espalda') * 0.7}
-      />
-      <path
-        d="M145 110 Q140 140 135 175 L130 175 Q135 140 140 115 Z"
-        fill={c('espalda').soft}
-        stroke={c('espalda').border}
-        strokeWidth="1"
-        opacity={op('espalda') * 0.7}
+        opacity={o('espalda') * 0.8}
+        className={cur('espalda')}
+        onMouseEnter={() => onActive('espalda')}
+        onMouseLeave={() => onActive(null)}
       />
 
-      {/* Core (espalda baja, gris) */}
+      {/* Espalda baja (lumbar) */}
       <path
-        d="M70 200 Q100 205 130 200 L128 215 Q100 220 72 215 Z"
+        d="M72 198 Q100 204 128 198 L 126 222 Q100 230 74 222 Z"
         fill={c('core').fill}
         stroke={c('core').border}
         strokeWidth="1"
-        opacity={op('core') * 0.6}
-        className="cursor-pointer transition-opacity"
+        opacity={o('core') * 0.7}
+        className={cur('core')}
         onMouseEnter={() => onActive('core')}
         onMouseLeave={() => onActive(null)}
       />
 
-      {/* Brazos (tríceps) */}
-      <path
-        d="M40 78 L52 78 Q45 130 48 175 L36 178 Q28 130 30 85 Z"
-        fill={c('brazo').fill}
-        stroke={c('brazo').border}
-        strokeWidth="1.2"
-        opacity={op('brazo')}
-        className="cursor-pointer transition-opacity"
-        onMouseEnter={() => onActive('brazo')}
-        onMouseLeave={() => onActive(null)}
-      />
-      <path
-        d="M160 78 L148 78 Q155 130 152 175 L164 178 Q172 130 170 85 Z"
-        fill={c('brazo').fill}
-        stroke={c('brazo').border}
-        strokeWidth="1.2"
-        opacity={op('brazo')}
-        className="cursor-pointer transition-opacity"
-        onMouseEnter={() => onActive('brazo')}
-        onMouseLeave={() => onActive(null)}
-      />
-      <ellipse cx="34" cy="195" rx="7" ry="22" fill={c('brazo').fill} stroke={c('brazo').border} strokeWidth="1" opacity={op('brazo')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('brazo')} onMouseLeave={() => onActive(null)} />
-      <ellipse cx="166" cy="195" rx="7" ry="22" fill={c('brazo').fill} stroke={c('brazo').border} strokeWidth="1" opacity={op('brazo')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('brazo')} onMouseLeave={() => onActive(null)} />
+      {/* Glúteos */}
+      <ellipse cx="80" cy="240" rx="20" ry="22" fill={c('pierna').soft} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+      <ellipse cx="120" cy="240" rx="20" ry="22" fill={c('pierna').soft} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
 
-      {/* Piernas (isquiotibiales y gemelos) */}
-      <ellipse cx="80" cy="280" rx="13" ry="80" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1.2" opacity={op('pierna')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
-      <ellipse cx="120" cy="280" rx="13" ry="80" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1.2" opacity={op('pierna')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
-      <ellipse cx="80" cy="380" rx="13" ry="30" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1" opacity={op('pierna')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
-      <ellipse cx="120" cy="380" rx="13" ry="30" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1" opacity={op('pierna')} className="cursor-pointer transition-opacity" onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+      {/* Tríceps */}
+      <path
+        d="M50 106 Q62 102 70 110 Q70 140 64 165 L 50 168 Q44 140 42 110 Z"
+        fill={c('brazo').fill}
+        stroke={c('brazo').border}
+        strokeWidth="1.2"
+        opacity={o('brazo')}
+        className={cur('brazo')}
+        onMouseEnter={() => onActive('brazo')}
+        onMouseLeave={() => onActive(null)}
+      />
+      <path
+        d="M150 106 Q138 102 130 110 Q130 140 136 165 L 150 168 Q156 140 158 110 Z"
+        fill={c('brazo').fill}
+        stroke={c('brazo').border}
+        strokeWidth="1.2"
+        opacity={o('brazo')}
+        className={cur('brazo')}
+        onMouseEnter={() => onActive('brazo')}
+        onMouseLeave={() => onActive(null)}
+      />
+
+      {/* Antebrazos */}
+      <path
+        d="M50 168 Q56 168 64 165 L 60 200 Q52 204 46 200 L 44 174 Z"
+        fill={c('brazo').soft}
+        stroke={c('brazo').border}
+        strokeWidth="1"
+        opacity={o('brazo')}
+        className={cur('brazo')}
+        onMouseEnter={() => onActive('brazo')}
+        onMouseLeave={() => onActive(null)}
+      />
+      <path
+        d="M150 168 Q144 168 136 165 L 140 200 Q148 204 154 200 L 156 174 Z"
+        fill={c('brazo').soft}
+        stroke={c('brazo').border}
+        strokeWidth="1"
+        opacity={o('brazo')}
+        className={cur('brazo')}
+        onMouseEnter={() => onActive('brazo')}
+        onMouseLeave={() => onActive(null)}
+      />
+      <ellipse cx="50" cy="208" rx="6" ry="9" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="1" />
+      <ellipse cx="150" cy="208" rx="6" ry="9" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="1" />
+
+      {/* Piernas (isquiotibiales) */}
+      <ellipse cx="80" cy="290" rx="14" ry="55" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+      <ellipse cx="120" cy="290" rx="14" ry="55" fill={c('pierna').fill} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+
+      {/* Gemelos */}
+      <ellipse cx="80" cy="375" rx="13" ry="32" fill={c('pierna').soft} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+      <ellipse cx="120" cy="375" rx="13" ry="32" fill={c('pierna').soft} stroke={c('pierna').border} strokeWidth="1" opacity={o('pierna')} className={cur('pierna')} onMouseEnter={() => onActive('pierna')} onMouseLeave={() => onActive(null)} />
+
+      {/* Tobillos */}
+      <ellipse cx="80" cy="420" rx="6" ry="10" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="0.8" />
+      <ellipse cx="120" cy="420" rx="6" ry="10" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="0.8" />
 
       {/* Pies */}
-      <ellipse cx="80" cy="430" rx="10" ry="6" fill="#fde68a" stroke="#92400e" strokeWidth="1" />
-      <ellipse cx="120" cy="430" rx="10" ry="6" fill="#fde68a" stroke="#92400e" strokeWidth="1" />
+      <ellipse cx="80" cy="442" rx="10" ry="6" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="0.8" />
+      <ellipse cx="120" cy="442" rx="10" ry="6" fill="url(#skinBack)" stroke="#a86b3d" strokeWidth="0.8" />
     </g>
   );
 }
 
 function MuscleDetail({ name, datum }: { name: string; datum: MuscleDatum }) {
   const c = colors(datum.trend, datum.hasData);
-  const Icon =
-    !datum.hasData || datum.trend === 'flat' || datum.trend === 'unknown'
-      ? Minus
-      : datum.trend === 'up'
-        ? TrendingUp
-        : TrendingDown;
+  const showDelta = datum.hasData && datum.delta != null;
+  const showCurrent = datum.hasData && datum.currentValue != null && !showDelta;
 
   return (
     <div
@@ -480,7 +566,7 @@ function MuscleDetail({ name, datum }: { name: string; datum: MuscleDatum }) {
         />
         <h3 className="font-bold text-ink-900">{name}</h3>
       </div>
-      {datum.hasData ? (
+      {showDelta ? (
         <>
           <div className="flex items-baseline gap-2">
             <span
@@ -491,9 +577,29 @@ function MuscleDetail({ name, datum }: { name: string; datum: MuscleDatum }) {
               {datum.delta?.toFixed(1) ?? '0'}
             </span>
             <span className="text-sm text-ink-500 font-medium">{datum.label.replace(/^[+-]/, '').trim()}</span>
-            <Icon className="w-5 h-5 ml-auto" style={{ color: c.border }} />
+            {datum.trend === 'up' ? (
+              <TrendingUp className="w-5 h-5 ml-auto" style={{ color: c.border }} />
+            ) : datum.trend === 'down' ? (
+              <TrendingDown className="w-5 h-5 ml-auto" style={{ color: c.border }} />
+            ) : (
+              <Minus className="w-5 h-5 ml-auto" style={{ color: c.border }} />
+            )}
           </div>
           <p className="text-sm text-ink-700 mt-2 leading-relaxed">{datum.message}</p>
+        </>
+      ) : showCurrent ? (
+        <>
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-extrabold tabular-nums tracking-tight text-ink-900">
+              {datum.currentValue?.toFixed(1)}
+            </span>
+            <span className="text-sm text-ink-500 font-medium">{datum.unit}</span>
+            <span className="text-xs text-ink-400 ml-auto">medición actual</span>
+          </div>
+          <p className="text-sm text-ink-700 mt-2 leading-relaxed">{datum.message}</p>
+          <p className="text-xs text-ink-500 mt-1.5 italic">
+            💡 Vuelve el próximo mes para ver cómo evoluciona.
+          </p>
         </>
       ) : (
         <>

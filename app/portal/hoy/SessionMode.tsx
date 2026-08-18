@@ -6,6 +6,7 @@ import {
   CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Lightbulb, Palmtree, Eye, Activity, Zap,
 } from 'lucide-react';
 import { Sparkline } from '@/app/components/Sparkline';
+import { daysAgoInLima } from '@/lib/date';
 
 type Exercise = {
   routineExerciseId: string;
@@ -261,9 +262,10 @@ function ExerciseCard({ ex, idx }: { ex: Exercise; idx: number }) {
 }
 
 function LastLogBlock({ ex, surpassed }: { ex: Exercise; surpassed: boolean }) {
-  const daysAgo = ex.lastDate
-    ? Math.max(0, Math.round((Date.now() - new Date(ex.lastDate).getTime()) / 86400000))
-    : null;
+  // ⚠️ Diferencia en días calculada en zona horaria Lima (no UTC del servidor).
+  // Antes se calculaba con Date.now() contra un string YYYY-MM-DD que JS
+  // interpretaba como UTC midnight → daba 1 día extra ("ayer" cuando era "hoy").
+  const daysAgo = daysAgoInLima(ex.lastDate);
   const relative = daysAgo === 0 ? 'hoy' : daysAgo === 1 ? 'ayer' : daysAgo != null ? `hace ${daysAgo} días` : '—';
 
   return (
