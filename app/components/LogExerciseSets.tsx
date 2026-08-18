@@ -77,6 +77,11 @@ export default function LogExerciseSets({
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [analysisLoaded, setAnalysisLoaded] = useState(false);
 
+  // Unidad del input de duración. Default 'seconds' (plancha 30s, etc.).
+  // El trainer puede cambiar a 'minutes' para caminata/trote (20 min, 45 min).
+  // Internamente todo se guarda en seconds (multiplica por 60 al guardar).
+  const [durationUnit, setDurationUnit] = useState<'seconds' | 'minutes'>('seconds');
+
   const summary = useMemo(() => calcSummary(sets), [sets]);
 
   async function loadAnalysis() {
@@ -331,17 +336,61 @@ export default function LogExerciseSets({
                   )}
                   {/* Reps o Tiempo según trackingType */}
                   {trackingType === 'time' ? (
-                    <input
-                      type="number"
-                      step="5"
-                      inputMode="numeric"
-                      min={5}
-                      value={s.durationSeconds || ''}
-                      onChange={(e) => updateSet(idx, { durationSeconds: Number(e.target.value) || 0 })}
-                      className="input text-sm py-1 px-2 flex-1 tabular-nums text-center"
-                      placeholder="seg"
-                      aria-label="Duración en segundos"
-                    />
+                    <>
+                      <input
+                        type="number"
+                        step={durationUnit === 'seconds' ? 5 : 1}
+                        inputMode="numeric"
+                        min={1}
+                        // Mostramos el valor convertido a la unidad actual.
+                        value={
+                          durationUnit === 'seconds'
+                            ? (s.durationSeconds || '')
+                            : (s.durationSeconds ? Math.round(s.durationSeconds / 60) : '')
+                        }
+                        onChange={(e) => {
+                          const raw = Number(e.target.value) || 0;
+                          // Guardamos siempre en segundos.
+                          const seconds = durationUnit === 'seconds' ? raw : raw * 60;
+                          updateSet(idx, { durationSeconds: seconds });
+                        }}
+                        className="input text-sm py-1 px-2 flex-1 tabular-nums text-center"
+                        placeholder={durationUnit === 'seconds' ? 'seg' : 'min'}
+                        aria-label={`Duración en ${durationUnit === 'seconds' ? 'segundos' : 'minutos'}`}
+                      />
+                      {/* Toggle Seg | Min (solo la primera serie muestra el toggle;
+                          lo refleja por-series via prop callback via contexto). */}
+                      {idx === 0 && (
+                        <div
+                          role="tablist"
+                          aria-label="Unidad de duración"
+                          className="inline-flex bg-ink-100 rounded text-[10px] font-medium p-0.5"
+                        >
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={durationUnit === 'seconds'}
+                            onClick={() => setDurationUnit('seconds')}
+                            className={`px-1.5 py-0.5 rounded transition-colors ${
+                              durationUnit === 'seconds' ? 'bg-white text-primary-700 shadow-xs' : 'text-ink-500'
+                            }`}
+                          >
+                            seg
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={durationUnit === 'minutes'}
+                            onClick={() => setDurationUnit('minutes')}
+                            className={`px-1.5 py-0.5 rounded transition-colors ${
+                              durationUnit === 'minutes' ? 'bg-white text-primary-700 shadow-xs' : 'text-ink-500'
+                            }`}
+                          >
+                            min
+                          </button>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <input
                       type="number"
@@ -393,7 +442,15 @@ export default function LogExerciseSets({
                 <p className="text-sm font-bold tabular-nums">
                   {summary.topSet
                     ? trackingType === 'time'
-                      ? `${summary.topSet.w}kg · ${summary.topSet.d ?? 0}s`
+                      ? (() => {
+                          const totalSec = summary.topSet.d ?? 0;
+                          if (totalSec === 0) return '—';
+                          if (totalSec >= 60 && totalSec % 60 === 0) {
+                            // Mostrar en minutos cuando es múltiplo limpio de 60
+                            return `${totalSec / 60} min`;
+                          }
+                          return `${totalSec}s`;
+                        })()
                       : `${summary.topSet.w}×${summary.topSet.r}`
                     : '—'}
                 </p>
