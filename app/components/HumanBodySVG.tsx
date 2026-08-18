@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import Image from 'next/image';
 import { TrendingUp, TrendingDown, Minus, RotateCw } from 'lucide-react';
 
 export type MuscleKey = 'pecho' | 'espalda' | 'pierna' | 'hombro' | 'brazo' | 'core';
@@ -108,13 +107,13 @@ export default function HumanBodySVG({ data }: HumanBodySVGProps) {
           onMouseLeave={handleContainerLeave}
           onBlur={handleContainerLeave}
         >
-          <Image
+          <img
             src={view === 'front' ? '/body/personal_trainer.svg' : '/body/workout.svg'}
             alt={`Cuerpo humano - vista ${view === 'front' ? 'frontal' : 'dorsal'}`}
             width={240}
             height={360}
             className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
-            priority
+            draggable={false}
           />
           {/* Hotspots superpuestos como SVG transparente */}
           <svg
