@@ -311,17 +311,22 @@ export default function LogExerciseSets({
                   Set {idx + 1}
                 </span>
                 <div className="flex items-center gap-1 flex-1">
-                  {/* Peso (opcional incluso en ejercicios por tiempo) */}
-                  <input
-                    type="number"
-                    step="0.5"
-                    inputMode="decimal"
-                    value={s.weight || ''}
-                    onChange={(e) => updateSet(idx, { weight: Number(e.target.value) || 0 })}
-                    className="input text-sm py-1 px-2 w-16 tabular-nums text-center"
-                    placeholder="kg"
-                  />
-                  <span className="text-ink-400 text-xs">×</span>
+                  {/* Peso solo si NO es ejercicio por tiempo. Para plancha/caminata
+                      el peso no tiene sentido — solo duración en segundos. */}
+                  {trackingType !== 'time' && (
+                    <>
+                      <input
+                        type="number"
+                        step="0.5"
+                        inputMode="decimal"
+                        value={s.weight || ''}
+                        onChange={(e) => updateSet(idx, { weight: Number(e.target.value) || 0 })}
+                        className="input text-sm py-1 px-2 w-16 tabular-nums text-center"
+                        placeholder="kg"
+                      />
+                      <span className="text-ink-400 text-xs">×</span>
+                    </>
+                  )}
                   {/* Reps o Tiempo según trackingType */}
                   {trackingType === 'time' ? (
                     <input
@@ -331,7 +336,7 @@ export default function LogExerciseSets({
                       min={5}
                       value={s.durationSeconds || ''}
                       onChange={(e) => updateSet(idx, { durationSeconds: Number(e.target.value) || 0 })}
-                      className="input text-sm py-1 px-2 w-14 tabular-nums text-center"
+                      className="input text-sm py-1 px-2 flex-1 tabular-nums text-center"
                       placeholder="seg"
                       aria-label="Duración en segundos"
                     />
