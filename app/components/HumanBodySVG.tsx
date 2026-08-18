@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { TrendingUp, TrendingDown, Minus, RotateCw } from 'lucide-react';
 
-export type MuscleKey = 'pecho' | 'espalda' | 'pierna' | 'hombro' | 'brazo' | 'core';
+export type MuscleKey = 'pecho' | 'pierna' | 'hombro' | 'brazo' | 'core';
 
 export type MuscleTrend = 'up' | 'down' | 'flat' | 'unknown';
 
@@ -23,7 +23,6 @@ export interface HumanBodySVGProps {
 
 const MUSCLE_LABEL: Record<MuscleKey, string> = {
   pecho: 'Pecho',
-  espalda: 'Espalda',
   pierna: 'Pierna',
   hombro: 'Hombro',
   brazo: 'Brazo',
@@ -559,8 +558,9 @@ function BackHotspots({ data, active, onActive }: HotspotProps) {
       <Hotspot x={70}  y={82}  w={30} h={25} keyName="hombro" data={data} active={active} onActive={onActive} />
       <Hotspot x={140} y={82}  w={30} h={25} keyName="hombro" data={data} active={active} onActive={onActive} />
 
-      {/* Espalda (dorsal ancho) */}
-      <Hotspot x={78}  y={108} w={84} h={95} keyName="espalda" data={data} active={active} onActive={onActive} rx={6} />
+      {/* Espalda removida: la circunferencia pasando por hombros = hombros.
+          La circunferencia pasando por el pecho = pecho. No hay métrica
+          'espalda' en fitness/bodybuilding. Ver /portal/progreso grid. */}
 
       {/* Tríceps */}
       <Hotspot x={48}  y={110} w={28} h={90} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />

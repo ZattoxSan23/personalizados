@@ -187,12 +187,8 @@ export default async function ProgresoPage() {
       chestDelta != null || chestCurr != null,
       chestCurr,
     ),
-    espalda: muscleDatum(
-      null,
-      '—',
-      'La espalda no se mide directo aún. Usa la ropa: si te queda mejor, estás ganando espalda 💪',
-      false,
-    ),
+    // espalda removida: la circunferencia pasando por hombros = hombros.
+    // La circunferencia del pecho es una medida distinta y se guarda como chest_cm.
     pierna: muscleDatum(
       thighDelta,
       thighDelta != null ? `${thighDelta > 0 ? '+' : ''}${thighDelta.toFixed(1)} cm` : '—',
