@@ -113,15 +113,17 @@ export default function LogExerciseSets({
   }
 
   async function save() {
-    // Validación según trackingType
+    // Validación: una serie es válida si está marcada como completada y
+    // tiene el dato requerido (reps para reps, duración para tiempo).
+    // El peso es OPCIONAL en ambos casos (peso corporal, plancha con peso, etc.).
     const isValid = trackingType === 'time'
       ? (s: ExerciseSetEntry) => s.completed && s.durationSeconds != null && s.durationSeconds > 0
-      : (s: ExerciseSetEntry) => s.completed && s.weight > 0 && s.reps > 0;
+      : (s: ExerciseSetEntry) => s.completed && s.reps > 0;
     const validSets = sets.filter(isValid);
     if (validSets.length === 0) {
       toast('error', trackingType === 'time'
         ? 'Completa al menos una serie con duración'
-        : 'Completa al menos una serie con peso y reps');
+        : 'Completa al menos una serie con reps');
       return;
     }
     const performedAtIso = localInputToIso(performedAt);
@@ -463,16 +465,31 @@ export default function LogExerciseSets({
 }
 
 function calcSummary(sets: ExerciseSetEntry[]) {
-  // Filtramos completadas (peso > 0 Y (reps > 0 O durationSeconds > 0))
+  // Una serie cuenta como completada si:
+  //   - tiene check verde (s.completed)
+  //   - y tiene datos válidos (reps para reps, duración para tiempo)
+  // El peso es opcional: en ejercicios por tiempo el peso es 0 por diseño,
+  // y en ejercicios por reps puede ser 0 si no se trabaja con peso (peso corporal).
   const completed = sets.filter(
-    (s) => s.completed && s.weight > 0 && (s.reps > 0 || (s.durationSeconds ?? 0) > 0),
+    (s) => s.completed && (s.reps > 0 || (s.durationSeconds ?? 0) > 0),
   );
   const volume = completed.reduce(
     (sum, s) => sum + s.weight * (s.reps > 0 ? s.reps : 0),
     0,
   );
+  // Top set: mayor peso; si nadie tiene peso, mayor duración
   const topSet = completed.reduce<{ w: number; r: number; d?: number } | null>(
-    (best, s) => (!best || s.weight > best.w ? { w: s.weight, r: s.reps, d: s.durationSeconds } : best),
+    (best, s) => {
+      // Prioridad 1: mayor peso
+      if (s.weight > 0 && (!best || s.weight > best.w)) {
+        return { w: s.weight, r: s.reps, d: s.durationSeconds };
+      }
+      // Prioridad 2: si nadie tiene peso, mayor duración
+      if (!best && (s.durationSeconds ?? 0) > 0) {
+        return { w: 0, r: 0, d: s.durationSeconds };
+      }
+      return best;
+    },
     null,
   );
   return {
