@@ -45,6 +45,12 @@ function colors(trend: MuscleTrend, hasData: boolean) {
   return TREND_COLORS.unknown;
 }
 
+// Tonos cálidos piel para el cuerpo base (para que no sea solo negro)
+const SKIN_FILL = '#fde68a';
+const SKIN_STROKE = '#92400e';
+const SILHOUETTE_FILL = '#e5e7eb';
+const SILHOUETTE_STROKE = '#475569';
+
 export default function HumanBodySVG({ data }: HumanBodySVGProps) {
   const [view, setView] = useState<'front' | 'back'>('front');
   const [active, setActive] = useState<MuscleKey | null>(null);
@@ -98,34 +104,25 @@ export default function HumanBodySVG({ data }: HumanBodySVGProps) {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-[280px_1fr] gap-6 items-start">
-        {/* Contenedor con imagen de fondo + hotspots encima */}
+      <div className="grid md:grid-cols-[260px_1fr] gap-6 items-start">
+        {/* SVG anatómico propio + hotspots encima */}
         <div
           ref={containerRef}
           className="relative mx-auto"
-          style={{ width: 240, height: 360 }}
+          style={{ width: 240, height: 400 }}
           onMouseLeave={handleContainerLeave}
           onBlur={handleContainerLeave}
         >
-          <img
-            src={view === 'front' ? '/body/personal_trainer.svg' : '/body/workout.svg'}
-            alt={`Cuerpo humano - vista ${view === 'front' ? 'frontal' : 'dorsal'}`}
-            width={240}
-            height={360}
-            className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
-            draggable={false}
-          />
-          {/* Hotspots superpuestos como SVG transparente */}
           <svg
-            viewBox="0 0 240 360"
-            className="absolute inset-0 w-full h-full"
-            aria-label="Zonas corporales interactivas"
+            viewBox="0 0 240 400"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-full h-full select-none"
+            aria-label={`Diagrama corporal - vista ${view === 'front' ? 'frontal' : 'dorsal'}`}
           >
-            {view === 'front' ? (
-              <FrontHotspots data={data} active={active} onActive={setActive} />
-            ) : (
-              <BackHotspots data={data} active={active} onActive={setActive} />
-            )}
+            {view === 'front' ? <FrontBody /> : <BackBody />}
+            {view === 'front'
+              ? <FrontHotspots data={data} active={active} onActive={setActive} />
+              : <BackHotspots data={data} active={active} onActive={setActive} />}
           </svg>
 
           {/* Leyenda */}
@@ -206,18 +203,283 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
+/**
+ * Vista frontal: silueta anatómica de pie, mirando al frente.
+ * Skin tone, paths limpios, sin fondo.
+ */
+function FrontBody() {
+  return (
+    <g stroke={SKIN_STROKE} strokeWidth="1.2" strokeLinejoin="round">
+      {/* Cabeza */}
+      <ellipse cx="120" cy="28" rx="22" ry="26" fill={SKIN_FILL} />
+      {/* Cuello */}
+      <path d="M105 52 Q120 60 135 52 L137 75 L103 75 Z" fill={SKIN_FILL} />
+
+      {/* Silueta del torso (silueta neutra) */}
+      <path
+        d="M75 80
+           Q90 70 105 76
+           L105 100
+           L75 105
+           L72 95
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M165 80
+           Q150 70 135 76
+           L135 100
+           L165 105
+           L168 95
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Pecho */}
+      <path
+        d="M75 100
+           Q120 95 165 100
+           L160 155
+           Q120 168 80 155
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Core / abdomen */}
+      <path
+        d="M80 158
+           Q120 165 160 158
+           L156 220
+           Q120 232 84 220
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Caderas */}
+      <path
+        d="M84 222
+           Q120 228 156 222
+           L154 248
+           Q120 256 86 248
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Bíceps (brazos frontales) */}
+      <path
+        d="M75 105
+           Q60 110 50 130
+           L48 195
+           Q58 200 70 195
+           L75 130
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M165 105
+           Q180 110 190 130
+           L192 195
+           Q182 200 170 195
+           L165 130
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Antebrazos */}
+      <path
+        d="M48 198
+           L72 195
+           L68 245
+           Q58 248 50 244
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M192 198
+           L168 195
+           L172 245
+           Q182 248 190 244
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Manos */}
+      <ellipse cx="55" cy="252" rx="6" ry="9" fill={SKIN_FILL} />
+      <ellipse cx="185" cy="252" rx="6" ry="9" fill={SKIN_FILL} />
+
+      {/* Piernas (cuádriceps) */}
+      <path
+        d="M86 250
+           Q105 254 120 252
+           L118 355
+           Q104 360 90 356
+           L85 280
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M154 250
+           Q135 254 120 252
+           L122 355
+           Q136 360 150 356
+           L155 280
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Pantorrillas */}
+      <ellipse cx="103" cy="380" rx="13" ry="14" fill={SILHOUETTE_FILL} />
+      <ellipse cx="137" cy="380" rx="13" ry="14" fill={SILHOUETTE_FILL} />
+
+      {/* Tobillos */}
+      <ellipse cx="103" cy="394" rx="4" ry="5" fill={SKIN_FILL} />
+      <ellipse cx="137" cy="394" rx="4" ry="5" fill={SKIN_FILL} />
+    </g>
+  );
+}
+
+/**
+ * Vista dorsal: silueta de espaldas.
+ */
+function BackBody() {
+  return (
+    <g stroke={SKIN_STROKE} strokeWidth="1.2" strokeLinejoin="round">
+      {/* Cabeza */}
+      <ellipse cx="120" cy="28" rx="22" ry="26" fill={SKIN_FILL} />
+      {/* Cuello */}
+      <path d="M105 52 Q120 60 135 52 L137 75 L103 75 Z" fill={SKIN_FILL} />
+
+      {/* Silueta hombros */}
+      <path
+        d="M75 80
+           Q90 70 105 76
+           L105 100
+           L75 105
+           L72 95
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M165 80
+           Q150 70 135 76
+           L135 100
+           L165 105
+           L168 95
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Trapecio (cuello posterior) */}
+      <path
+        d="M105 75
+           L135 75
+           L137 100
+           Q120 105 103 100
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Espalda (dorsal ancho) */}
+      <path
+        d="M75 102
+           L165 102
+           L162 200
+           Q120 212 78 200
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Lumbar */}
+      <path
+        d="M82 205
+           Q120 210 158 205
+           L154 235
+           Q120 240 86 235
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Glúteos */}
+      <ellipse cx="105" cy="250" rx="20" ry="18" fill={SILHOUETTE_FILL} />
+      <ellipse cx="135" cy="250" rx="20" ry="18" fill={SILHOUETTE_FILL} />
+
+      {/* Tríceps */}
+      <path
+        d="M75 105
+           Q60 110 50 130
+           L48 195
+           Q58 200 70 195
+           L75 130
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M165 105
+           Q180 110 190 130
+           L192 195
+           Q182 200 170 195
+           L165 130
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Antebrazos */}
+      <path
+        d="M48 198
+           L72 195
+           L68 245
+           Q58 248 50 244
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M192 198
+           L168 195
+           L172 245
+           Q182 248 190 244
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <ellipse cx="55" cy="252" rx="6" ry="9" fill={SKIN_FILL} />
+      <ellipse cx="185" cy="252" rx="6" ry="9" fill={SKIN_FILL} />
+
+      {/* Piernas (isquiotibiales) */}
+      <path
+        d="M86 270
+           Q105 274 120 272
+           L118 355
+           Q104 360 90 356
+           L85 290
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+      <path
+        d="M154 270
+           Q135 274 120 272
+           L122 355
+           Q136 360 150 356
+           L155 290
+           Z"
+        fill={SILHOUETTE_FILL}
+      />
+
+      {/* Gemelos */}
+      <ellipse cx="103" cy="378" rx="14" ry="14" fill={SILHOUETTE_FILL} />
+      <ellipse cx="137" cy="378" rx="14" ry="14" fill={SILHOUETTE_FILL} />
+
+      {/* Tobillos */}
+      <ellipse cx="103" cy="394" rx="4" ry="5" fill={SKIN_FILL} />
+      <ellipse cx="137" cy="394" rx="4" ry="5" fill={SKIN_FILL} />
+    </g>
+  );
+}
+
 interface HotspotProps {
   data: Partial<Record<MuscleKey, MuscleDatum>>;
   active: MuscleKey | null;
   onActive: (k: MuscleKey) => void;
 }
 
-/**
- * Crea un hotspot rectangular clicable sobre la imagen.
- * - Coordenadas en el viewBox 0 0 240 360
- * - Color de fondo según tendencia (semitransparente)
- * - Borde más grueso cuando está activo
- */
 function Hotspot({
   x, y, w, h,
   keyName, data, active, onActive, rx = 8,
@@ -241,7 +503,7 @@ function Hotspot({
       fill={c.fill}
       stroke={isActive ? '#0f172a' : c.stroke}
       strokeWidth={isActive ? 2.5 : 1.5}
-      opacity={isActive ? 0.95 : (hasData ? 0.75 : 0.5)}
+      opacity={isActive ? 0.95 : (hasData ? 0.65 : 0.4)}
       role="button"
       tabIndex={0}
       aria-label={`${MUSCLE_LABEL[keyName]}: ${hasData ? dat.label : 'sin datos'}`}
@@ -261,78 +523,62 @@ function Hotspot({
 }
 
 /**
- * Vista frontal: hotspots sobre la imagen.
- * Coordenadas ajustadas al viewBox 240x360 de la imagen personal_trainer.svg
- * que muestra una figura fitness de frente.
+ * Hotspots frontales alineados al cuerpo de FrontBody (viewBox 240x400)
  */
 function FrontHotspots({ data, active, onActive }: HotspotProps) {
   return (
-    <g>
+    <g pointerEvents="all">
       {/* Hombros (deltoides) */}
-      <Hotspot x={70}  y={100} w={30} h={28} keyName="hombro" data={data} active={active} onActive={onActive} />
-      <Hotspot x={140} y={100} w={30} h={28} keyName="hombro" data={data} active={active} onActive={onActive} />
+      <Hotspot x={70}  y={82}  w={30} h={25} keyName="hombro" data={data} active={active} onActive={onActive} />
+      <Hotspot x={140} y={82}  w={30} h={25} keyName="hombro" data={data} active={active} onActive={onActive} />
 
-      {/* Pecho */}
-      <Hotspot x={85}  y={130} w={70} h={35} keyName="pecho" data={data} active={active} onActive={onActive} rx={6} />
+      {/* Pecho (pectorales) */}
+      <Hotspot x={80}  y={108} w={80} h={48} keyName="pecho" data={data} active={active} onActive={onActive} rx={6} />
 
       {/* Bíceps */}
-      <Hotspot x={50}  y={125} w={20} h={45} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
-      <Hotspot x={170} y={125} w={20} h={45} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
+      <Hotspot x={48}  y={110} w={28} h={90} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
+      <Hotspot x={164} y={110} w={28} h={90} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
 
-      {/* Core / abdominales */}
-      <Hotspot x={90}  y={170} w={60} h={50} keyName="core" data={data} active={active} onActive={onActive} rx={6} />
+      {/* Core / abdomen */}
+      <Hotspot x={85}  y={162} w={70} h={60} keyName="core" data={data} active={active} onActive={onActive} rx={6} />
 
       {/* Piernas (cuádriceps) */}
-      <Hotspot x={90}  y={225} w={25} h={70} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
-      <Hotspot x={125} y={225} w={25} h={70} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
-
-      {/* Pantorrillas */}
-      <Hotspot x={92}  y={298} w={22} h={45} keyName="pierna" data={data} active={active} onActive={onActive} rx={10} />
-      <Hotspot x={126} y={298} w={22} h={45} keyName="pierna" data={data} active={active} onActive={onActive} rx={10} />
+      <Hotspot x={86}  y={252} w={30} h={105} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
+      <Hotspot x={124} y={252} w={30} h={105} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
     </g>
   );
 }
 
 /**
- * Vista dorsal: hotspots sobre la imagen workout.svg.
+ * Hotspots dorsales alineados al cuerpo de BackBody
  */
 function BackHotspots({ data, active, onActive }: HotspotProps) {
   return (
-    <g>
+    <g pointerEvents="all">
       {/* Hombros */}
-      <Hotspot x={70}  y={100} w={30} h={28} keyName="hombro" data={data} active={active} onActive={onActive} />
-      <Hotspot x={140} y={100} w={30} h={28} keyName="hombro" data={data} active={active} onActive={onActive} />
+      <Hotspot x={70}  y={82}  w={30} h={25} keyName="hombro" data={data} active={active} onActive={onActive} />
+      <Hotspot x={140} y={82}  w={30} h={25} keyName="hombro" data={data} active={active} onActive={onActive} />
 
       {/* Espalda (dorsal ancho) */}
-      <Hotspot x={80}  y={130} w={80} h={55} keyName="espalda" data={data} active={active} onActive={onActive} rx={6} />
+      <Hotspot x={78}  y={108} w={84} h={95} keyName="espalda" data={data} active={active} onActive={onActive} rx={6} />
 
       {/* Tríceps */}
-      <Hotspot x={50}  y={125} w={20} h={45} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
-      <Hotspot x={170} y={125} w={20} h={45} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
+      <Hotspot x={48}  y={110} w={28} h={90} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
+      <Hotspot x={164} y={110} w={28} h={90} keyName="brazo" data={data} active={active} onActive={onActive} rx={10} />
 
-      {/* Lumbar */}
-      <Hotspot x={90}  y={190} w={60} h={25} keyName="core" data={data} active={active} onActive={onActive} rx={6} />
+      {/* Core (lumbar) */}
+      <Hotspot x={85}  y={210} w={70} h={28} keyName="core" data={data} active={active} onActive={onActive} rx={4} />
 
-      {/* Glúteos */}
-      <Hotspot x={90}  y={220} w={25} h={35} keyName="pierna" data={data} active={active} onActive={onActive} rx={8} />
-      <Hotspot x={125} y={220} w={25} h={35} keyName="pierna" data={data} active={active} onActive={onActive} rx={8} />
-
-      {/* Isquiotibiales */}
-      <Hotspot x={90}  y={260} w={25} h={45} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
-      <Hotspot x={125} y={260} w={25} h={45} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
-
-      {/* Gemelos */}
-      <Hotspot x={92}  y={308} w={22} h={35} keyName="pierna" data={data} active={active} onActive={onActive} rx={10} />
-      <Hotspot x={126} y={308} w={22} h={35} keyName="pierna" data={data} active={active} onActive={onActive} rx={10} />
+      {/* Piernas (isquiotibiales) */}
+      <Hotspot x={86}  y={272} w={30} h={85} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
+      <Hotspot x={124} y={272} w={30} h={85} keyName="pierna" data={data} active={active} onActive={onActive} rx={6} />
     </g>
   );
 }
 
 function MuscleDetail({ name, datum }: { name: string; datum: MuscleDatum }) {
-  const c = colors(datum.trend, datum.hasData);
   const showDelta = datum.hasData && datum.delta != null;
   const showCurrent = datum.hasData && datum.currentValue != null && !showDelta;
-  // Color sólido para el detalle (sin transparencia)
   const solidFill = (() => {
     if (datum.hasData) {
       if (datum.trend === 'up') return '#22c55e';
