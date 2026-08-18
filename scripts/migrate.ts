@@ -206,7 +206,9 @@ const statements = [
 
 async function main() {
   console.log('🔧 Ejecutando migraciones en Supabase...');
-  const sql = postgres(DATABASE_URL!, { max: 1 });
+  // Forzamos ssl:'require' igual que lib/db/index.ts — Supabase pooler
+  // siempre exige SSL aunque el query string no lo pida.
+  const sql = postgres(DATABASE_URL!, { max: 1, ssl: 'require' });
 
   for (const stmt of statements) {
     try {
