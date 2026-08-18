@@ -42,7 +42,17 @@ export default async function RutinaPage() {
   const reIds = exerciseIds.map((e) => e.id);
 
   // Batch: PR + serie histórica por ejercicio en una sola query
-  const logsByRe: Record<string, Array<{ weight: number; reps: number; date: string; topSet: { w: number; r: number } | null; volume: number; rpe: number | null }>> = {};
+  const logsByRe: Record<string, Array<{
+    weight: number;
+    reps: number;
+    date: string;
+    topSet: { w: number; r: number } | null;
+    volume: number;
+    rpe: number | null;
+    notes: string | null;
+    sets: Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
+    trackingType: 'reps' | 'time' | null;
+  }>> = {};
   let allTimePR = 0;
 
   if (reIds.length > 0) {
@@ -55,6 +65,8 @@ export default async function RutinaPage() {
         performedAt: exerciseLogs.performedAt,
         sets: exerciseLogs.sets,
         rpe: exerciseLogs.rpe,
+        notes: exerciseLogs.notes,
+        trackingType: exerciseLogs.trackingType,
       })
       .from(exerciseLogs)
       .where(
@@ -84,6 +96,9 @@ export default async function RutinaPage() {
         topSet,
         volume: Math.round(volume),
         rpe: log.rpe,
+        notes: log.notes,
+        sets: completed,
+        trackingType: (log.trackingType ?? null) as 'reps' | 'time' | null,
       });
       logsByRe[log.routineExerciseId] = list;
       if (w > allTimePR) allTimePR = w;
@@ -195,7 +210,17 @@ async function DayCard({
   dayKey: string;
   dayName: string | null;
   dayIndex: number;
-  logsByRe: Record<string, Array<{ weight: number; reps: number; date: string; topSet: { w: number; r: number } | null; volume: number; rpe: number | null }>>;
+  logsByRe: Record<string, Array<{
+    weight: number;
+    reps: number;
+    date: string;
+    topSet: { w: number; r: number } | null;
+    volume: number;
+    rpe: number | null;
+    notes: string | null;
+    sets: Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
+    trackingType: 'reps' | 'time' | null;
+  }>>;
 }) {
   const exes = await db
     .select({
@@ -297,7 +322,17 @@ function ExerciseRow({
     nameEs: string;
     muscleGroup: string | null;
   };
-  history: Array<{ weight: number; reps: number; date: string; topSet: { w: number; r: number } | null; volume: number; rpe: number | null }>;
+  history: Array<{
+    weight: number;
+    reps: number;
+    date: string;
+    topSet: { w: number; r: number } | null;
+    volume: number;
+    rpe: number | null;
+    notes: string | null;
+    sets: Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
+    trackingType: 'reps' | 'time' | null;
+  }>;
   series: number[];
   prWeight: number;
   lastWeight: number;
@@ -322,7 +357,9 @@ function ExerciseRow({
           <p className="font-semibold text-sm text-ink-900 truncate">{exercise.nameEs}</p>
           <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-ink-500 flex-wrap">
             <span className="bg-white rounded px-1.5 py-0.5 font-medium">
-              {exercise.sets} × {exercise.reps}
+              {exercise.trackingType === 'time' && exercise.durationSeconds
+                ? `${exercise.sets} × ${formatSeconds(exercise.durationSeconds)}`
+                : `${exercise.sets} × ${exercise.reps ?? '—'}`}
             </span>
             {exercise.weightKg && (
               <span className="bg-white rounded px-1.5 py-0.5">
@@ -371,30 +408,69 @@ function ExerciseRow({
           </p>
         )}
 
-        {/* Historial */}
+        {/* Historial detallado: cada sesión con sus series individuales */}
         {history.length >= 1 && (
-          <div className="pt-1 border-t border-ink-200/60 space-y-1">
-            <p className="text-[10px] font-semibold text-ink-500 uppercase tracking-wider pt-1.5">Últimos registros</p>
-            <ul className="space-y-1">
+          <div className="pt-1 border-t border-ink-200/60 space-y-2">
+            <p className="text-[10px] font-semibold text-ink-500 uppercase tracking-wider pt-1.5">Tus sesiones</p>
+            <ul className="space-y-2">
               {[...history].reverse().slice(0, 5).map((l, i) => {
                 const prev = history[history.length - 1 - i - 1];
                 const delta = prev ? l.weight - prev.weight : null;
+                const isTime = l.trackingType === 'time';
                 return (
-                  <li key={i} className="flex items-center justify-between text-xs">
-                    <span className="text-ink-500 tabular-nums">{l.date}</span>
-                    <span className="font-medium tabular-nums text-ink-700">
-                      {l.topSet ? `${l.topSet.w}×${l.topSet.r}` : `${l.weight}kg`}
-                      <span className="text-ink-400 ml-1.5">vol {l.volume}</span>
-                      {l.rpe && <span className="text-ink-400 ml-1.5">RPE {l.rpe}</span>}
-                    </span>
-                    <span className="w-12 text-right">
-                      {delta != null && Math.abs(delta) >= 0.5 && (
-                        <span className={`inline-flex items-center gap-0.5 tabular-nums text-[10px] font-semibold ${delta > 0 ? 'text-success' : 'text-danger'}`}>
-                          {delta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                          {Math.abs(delta).toFixed(1)}
-                        </span>
-                      )}
-                    </span>
+                  <li key={i} className="rounded-md bg-white border border-ink-200 p-2 space-y-1.5">
+                    {/* Header de la sesión */}
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-ink-500 tabular-nums font-semibold">{l.date}</span>
+                        {l.rpe != null && (
+                          <span className="text-[10px] bg-ink-100 text-ink-600 px-1.5 py-0.5 rounded font-semibold tabular-nums">
+                            RPE {l.rpe}
+                          </span>
+                        )}
+                        {delta != null && Math.abs(delta) >= 0.5 && (
+                          <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold tabular-nums ${delta > 0 ? 'text-success' : 'text-danger'}`}>
+                            {delta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                            {Math.abs(delta).toFixed(1)}kg
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-ink-400 tabular-nums">
+                        vol {l.volume}kg
+                      </span>
+                    </div>
+                    {/* Series individuales */}
+                    {l.sets && l.sets.length > 0 ? (
+                      <ol className="space-y-0.5">
+                        {l.sets.map((s, si) => (
+                          <li
+                            key={si}
+                            className="flex items-center justify-between text-xs pl-1.5 border-l-2 border-primary-200"
+                          >
+                            <span className="text-ink-500 tabular-nums font-medium w-12">
+                              Set {si + 1}
+                            </span>
+                            <span className="font-semibold tabular-nums text-ink-900">
+                              {isTime
+                                ? `${s.durationSeconds ?? 0}s`
+                                : `${s.weight}kg × ${s.reps}`}
+                            </span>
+                            <CheckCircle2 className="w-3 h-3 text-success" />
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="text-[10px] text-ink-400 italic pl-1.5">
+                        Sin detalle de series
+                      </p>
+                    )}
+                    {/* Notas del trainer */}
+                    {l.notes && l.notes !== 'Registro inicial' && (
+                      <p className="text-[10px] text-ink-500 italic pt-1 border-t border-ink-100 inline-flex items-start gap-1">
+                        <Lightbulb className="w-2.5 h-2.5 mt-0.5 flex-shrink-0" />
+                        <span>{l.notes}</span>
+                      </p>
+                    )}
                   </li>
                 );
               })}
@@ -446,4 +522,14 @@ function LastSessionCard({
       )}
     </div>
   );
+}
+/** Formatea segundos como "30s" / "1:30" / "2:00:00". */
+function formatSeconds(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  if (m < 60) return s > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${m}:00`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${h}:${String(mm).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
