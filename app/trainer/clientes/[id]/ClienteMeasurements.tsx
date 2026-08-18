@@ -7,6 +7,7 @@ import {
   calcBodyFatNavy, calcBodyComposition,
   CATEGORY_LABELS, WHR_RISK_LABELS,
 } from '@/lib/us-navy';
+import { toast } from '@/app/components/Toast';
 
 type Measurements = {
   weightKg: number | null;
@@ -109,6 +110,13 @@ export default function ClienteMeasurements({
       if (!res.ok) throw new Error(data.error ?? 'Error');
       setEditing(false);
       router.refresh();
+      // Toast claro: el cliente ve si fue actualización o nueva medición.
+      // (sin toast si el body estaba vacío — fue solo edición de perfil).
+      if (data.progressAction === 'updated') {
+        toast('success', 'Medición actualizada');
+      } else if (data.progressAction === 'created') {
+        toast('success', 'Nueva medición guardada · compá el mes que el mes');
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {

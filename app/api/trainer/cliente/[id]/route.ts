@@ -4,7 +4,7 @@ import { requireTrainer, hashPassword } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users, clients, progressEntries, aiChatSessions } from '@/lib/db/schema';
 import { localDateString } from '@/lib/date';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, desc } from 'drizzle-orm';
 import { z } from 'zod';
 
 const Measurements = z.object({
@@ -111,16 +111,24 @@ export async function PATCH(
     }
 
     // Si se envió createProgressEntry, crear un nuevo registro de progreso
+    // (o actualizar el del día si ya existe — evita duplicados por edición).
+    let progressAction: 'created' | 'updated' | 'empty' | null = null;
     let createdProgressId: string | null = null;
     if (body.createProgressEntry) {
       const m = body.createProgressEntry;
       const hasAny = Object.values(m).some((v) => v != null);
       if (hasAny) {
-        const peId = `pe_${crypto.randomUUID()}`;
-        await db.insert(progressEntries).values({
-          id: peId,
-          clientId: existing.id,
-          recordedAt: localDateString(),
+        const today = localDateString();
+        // Buscar la última entrada; si es de hoy, hacemos UPDATE en lugar de
+        // INSERT para que editar medidas del mismo día no cree filas duplicadas.
+        const [lastEntry] = await db
+          .select({ id: progressEntries.id, recordedAt: progressEntries.recordedAt })
+          .from(progressEntries)
+          .where(eq(progressEntries.clientId, existing.id))
+          .orderBy(desc(progressEntries.recordedAt))
+          .limit(1);
+
+        const measurementValues = {
           weightKg: toStr(m.weightKg),
           bodyFatPct: toStr(m.bodyFatPct),
           neckCm: toStr(m.neckCm),
@@ -135,15 +143,34 @@ export async function PATCH(
           calfCm: toStr(m.calfCm),
           armCm: toStr(m.armCm),
           notes: 'Actualizado desde perfil',
-        } as any);
-        createdProgressId = peId;
+        } as any;
+
+        if (lastEntry && lastEntry.recordedAt === today) {
+          await db.update(progressEntries)
+            .set(measurementValues)
+            .where(eq(progressEntries.id, lastEntry.id));
+          createdProgressId = lastEntry.id;
+          progressAction = 'updated';
+        } else {
+          const peId = `pe_${crypto.randomUUID()}`;
+          await db.insert(progressEntries).values({
+            id: peId,
+            clientId: existing.id,
+            recordedAt: today,
+            ...measurementValues,
+          } as any);
+          createdProgressId = peId;
+          progressAction = 'created';
+        }
+      } else {
+        progressAction = 'empty';
       }
     }
 
     // Invalidar cache para que la UI vea los cambios al instante
     revalidateTag('clientes');
 
-    return NextResponse.json({ ok: true, createdProgressId });
+    return NextResponse.json({ ok: true, createdProgressId, progressAction });
   } catch (err: any) {
     if (err.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
