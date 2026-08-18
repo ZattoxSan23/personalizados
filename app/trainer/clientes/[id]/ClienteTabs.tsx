@@ -13,7 +13,9 @@ import RutinaBuilder from './RutinaBuilder';
 type Ejercicio = {
   id: string;
   sets: number;
-  reps: string;
+  trackingType?: 'reps' | 'time';
+  reps: string | null;
+  durationSeconds: number | null;
   weightKg: string | null;
   restSeconds: number | null;
   notes: string | null;
@@ -187,7 +189,9 @@ export default function ClienteTabs({
                               </div>
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap text-xs">
                                 <span className="bg-ink-100 rounded px-1.5 py-0.5 font-medium">
-                                  {ex.sets} × {ex.reps}
+                                  {ex.trackingType === 'time' && ex.durationSeconds
+                                    ? `${ex.sets} × ${formatSeconds(ex.durationSeconds)}`
+                                    : `${ex.sets} × ${ex.reps ?? '—'}`}
                                 </span>
                                 {ex.weightKg && (
                                   <span className="bg-ink-100 rounded px-1.5 py-0.5">
@@ -208,7 +212,9 @@ export default function ClienteTabs({
                                 routineExerciseId={ex.id}
                                 exerciseName={ex.nameEs}
                                 suggestedSets={ex.sets}
+                                trackingType={ex.trackingType ?? 'reps'}
                                 suggestedReps={ex.reps}
+                                suggestedDurationSeconds={ex.durationSeconds}
                                 suggestedWeightKg={ex.weightKg ? Number(ex.weightKg) : null}
                                 showSuggestion={false}
                               />
@@ -423,4 +429,15 @@ function PlanDetail({
       })}
     </div>
   );
+}
+
+/** Formatea segundos como "30s" / "1:30" / "2:00:00". */
+function formatSeconds(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  if (m < 60) return s > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${m}:00`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${h}:${String(mm).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }

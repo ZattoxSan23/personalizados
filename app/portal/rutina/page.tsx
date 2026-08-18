@@ -10,6 +10,7 @@ import {
   CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Minus, Eye,
 } from 'lucide-react';
 import { Sparkline } from '@/app/components/Sparkline';
+import { dayOfWeekInLima, toLimaDateString } from '@/lib/date';
 
 const DAYS_FULL = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 const DAYS_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -69,8 +70,8 @@ export default async function RutinaPage() {
       const list = logsByRe[log.routineExerciseId] ?? [];
       if (list.length >= 8) continue;
       const w = log.weight ? Number(log.weight) : 0;
-      const r = log.reps;
-      const sets = (log.sets ?? []) as Array<{ weight: number; reps: number; completed: boolean }>;
+      const r = log.reps ?? 0; // null cuando el ejercicio es por tiempo
+      const sets = (log.sets ?? []) as Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
       const completed = sets.filter((s) => s.completed);
       const volume = completed.reduce((sum, s) => sum + s.weight * s.reps, 0);
       const topSet = completed.length > 0
@@ -79,7 +80,7 @@ export default async function RutinaPage() {
       list.push({
         weight: w,
         reps: r,
-        date: typeof log.performedAt === 'string' ? log.performedAt : log.performedAt.toISOString().split('T')[0],
+        date: toLimaDateString(log.performedAt),
         topSet,
         volume: Math.round(volume),
         rpe: log.rpe,
@@ -200,7 +201,9 @@ async function DayCard({
     .select({
       id: routineExercises.id,
       sets: routineExercises.sets,
+      trackingType: routineExercises.trackingType,
       reps: routineExercises.reps,
+      durationSeconds: routineExercises.durationSeconds,
       weightKg: routineExercises.weightKg,
       restSeconds: routineExercises.restSeconds,
       notes: routineExercises.notes,
@@ -213,7 +216,8 @@ async function DayCard({
     .orderBy(routineExercises.orderIndex);
 
   const dayShort = DAYS_FULL[dayIndex].slice(0, 3);
-  const todayKey = DAYS_ORDER[new Date().getDay()];
+  // ⚠️ Día actual en zona horaria Lima (no UTC del servidor).
+  const todayKey = DAYS_ORDER[dayOfWeekInLima()];
   const isToday = dayKey === todayKey;
 
   return (
@@ -284,7 +288,9 @@ function ExerciseRow({
   exercise: {
     id: string;
     sets: number;
-    reps: string;
+    trackingType?: 'reps' | 'time';
+    reps: string | null;
+    durationSeconds: number | null;
     weightKg: string | null;
     restSeconds: number | null;
     notes: string | null;

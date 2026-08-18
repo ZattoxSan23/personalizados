@@ -96,7 +96,12 @@ export const routineExercises = pgTable('routine_exercises', {
   exerciseId: text('exercise_id').notNull().references(() => exercises.id),
   orderIndex: integer('order_index').notNull(),
   sets: integer('sets').notNull(),
-  reps: text('reps').notNull(),
+  // Tipo de tracking por ejercicio en la rutina (NO en el catálogo):
+  //   'reps' → el campo reps tiene '8-12' o '8' (default, retrocompatible)
+  //   'time' → el campo reps es NULL, duration_seconds tiene la duración sugerida
+  trackingType: text('tracking_type', { enum: ['reps', 'time'] }).notNull().default('reps'),
+  reps: text('reps'),
+  durationSeconds: integer('duration_seconds'),
   weightKg: numeric('weight_kg', { precision: 6, scale: 2 }),
   restSeconds: integer('rest_seconds').default(90),
   notes: text('notes'),
@@ -189,15 +194,23 @@ export const exerciseLogs = pgTable('exercise_logs', {
   clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
   routineExerciseId: text('routine_exercise_id').notNull().references(() => routineExercises.id, { onDelete: 'cascade' }),
   performedAt: timestamp('performed_at', { withTimezone: true }).notNull().defaultNow(),
+  // tracking_type en el log se copia del routine_exercise al guardar la sesión
+  // (puede ser NULL en logs viejos creados antes de esta migración).
+  trackingType: text('tracking_type', { enum: ['reps', 'time'] }),
   // Top set del día: el peso máximo con el que el cliente realmente trabajó
   topSetWeightKg: numeric('top_set_weight_kg', { precision: 6, scale: 2 }),
-  topSetReps: integer('top_set_reps').notNull(),
+  // top_set_reps es NULL cuando el log es de un ejercicio por tiempo (plancha,
+  // caminata, etc.) — la duración real vive en cada entry del jsonb sets[].
+  topSetReps: integer('top_set_reps'),
+  topSetDurationSeconds: integer('top_set_duration_seconds'),
   // Cuántas series logró completar de las asignadas
   setsCompleted: integer('sets_completed').notNull().default(1),
   // Esfuerzo percibido 1-10 (escala RPE simplificada)
   rpe: integer('rpe'),
   notes: text('notes'),
-  // Series detalladas: [{weight: number, reps: number, completed: boolean}, ...]
+  // Series detalladas. Cada entry:
+  //   - si tracking_type='reps':  reps es requerido, durationSeconds ausente
+  //   - si tracking_type='time':   durationSeconds es requerido, reps = 0
   sets: jsonb('sets').$type<ExerciseSetEntry[]>().notNull().default([]),
 }, (table) => ({
   clientExerciseIdx: index('idx_logs_client_exercise').on(table.clientId, table.routineExerciseId, table.performedAt),
@@ -207,6 +220,8 @@ export const exerciseLogs = pgTable('exercise_logs', {
 export interface ExerciseSetEntry {
   weight: number;
   reps: number;
+  /** Duración en segundos. Solo presente si el ejercicio se trackea por tiempo. */
+  durationSeconds?: number;
   completed: boolean;
 }
 

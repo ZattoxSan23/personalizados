@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import { calcBodyFatNavy, calcBodyComposition, CATEGORY_LABELS } from '@/lib/us-navy';
+import {
+  calcBodyFatNavy, calcBodyComposition,
+  CATEGORY_LABELS, WHR_RISK_LABELS,
+} from '@/lib/us-navy';
 
 export interface Measurements {
   weightKg: number | null;
@@ -36,6 +39,8 @@ export const emptyMeasurements: Measurements = {
 interface Props {
   gender: string | null;
   heightCm: number | null;
+  /** Fecha de nacimiento YYYY-MM-DD (opcional). Si está, se calcula edad. */
+  birthDate?: string | null;
   value: Measurements;
   onChange: (m: Measurements) => void;
 }
@@ -74,11 +79,12 @@ const NumberField = ({
   </div>
 );
 
-export default function BodyMeasurementsInput({ gender, heightCm, value, onChange }: Props) {
-  // Auto-calc US Navy
+export default function BodyMeasurementsInput({ gender, heightCm, birthDate, value, onChange }: Props) {
+  // Auto-calc US Navy + Deurenberg + RCC
   const calc = useMemo(() => {
+    const g = (gender as 'male' | 'female' | null) ?? null;
     const navy = calcBodyFatNavy({
-      gender: (gender as 'male' | 'female' | null) ?? null,
+      gender: g,
       heightCm,
       neckCm: value.neckCm,
       waistCm: value.waistCm,
@@ -86,16 +92,17 @@ export default function BodyMeasurementsInput({ gender, heightCm, value, onChang
     });
     const composition = calcBodyComposition(
       {
-        gender: (gender as 'male' | 'female' | null) ?? null,
+        gender: g,
         heightCm,
         neckCm: value.neckCm,
         waistCm: value.waistCm,
         hipsCm: value.hipsCm,
+        birthDate: birthDate ?? null,
       },
       value.weightKg,
     );
     return { navy, composition };
-  }, [gender, heightCm, value.neckCm, value.waistCm, value.hipsCm, value.weightKg]);
+  }, [gender, heightCm, birthDate, value.neckCm, value.waistCm, value.hipsCm, value.weightKg]);
 
   const set = <K extends keyof Measurements>(k: K, v: Measurements[K]) =>
     onChange({ ...value, [k]: v });
@@ -110,57 +117,90 @@ export default function BodyMeasurementsInput({ gender, heightCm, value, onChang
   }, [calc.navy]);
 
   const navyMissing = !value.neckCm || !value.waistCm || (gender === 'female' && !value.hipsCm);
+  const c = calc.composition;
 
   return (
     <div className="space-y-3">
-      {/* US Navy live */}
-      <div className="rounded-lg bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200 p-3">
-        <p className="text-xs font-semibold mb-2 text-primary-900 flex items-center gap-1.5">
+      {/* Métricas calculadas: US Navy + Deurenberg + RCC + IMC */}
+      <div className="rounded-lg bg-gradient-to-br from-primary-50 to-primary-100 border border-primary-200 p-3 space-y-3">
+        <p className="text-xs font-semibold text-primary-900 flex items-center gap-1.5">
           <span className="h-5 w-5 rounded bg-primary-600 text-white text-xs flex items-center justify-center font-bold">∑</span>
-          Cálculo automático (US Navy)
+          Métricas calculadas
         </p>
+
+        {/* Edad (solo si hay birthDate) */}
+        {c?.ageYears != null && (
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-primary-700 tabular-nums">{c.ageYears}</span>
+            <span className="text-xs text-primary-800">años</span>
+          </div>
+        )}
+
         {calc.navy != null ? (
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-primary-700 tabular-nums">{calc.navy}%</span>
               <span className="text-xs text-primary-800">
-                grasa · {CATEGORY_LABELS[calc.composition?.category ?? 'average']}
+                grasa US Navy · {CATEGORY_LABELS[c?.category ?? 'average']}
               </span>
             </div>
-            {calc.composition && (
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                {calc.composition.fatMassKg != null && (
-                  <div>
-                    <p className="text-ink-500">Masa grasa</p>
-                    <p className="font-semibold tabular-nums">{calc.composition.fatMassKg} kg</p>
-                  </div>
-                )}
-                {calc.composition.leanMassKg != null && (
-                  <div>
-                    <p className="text-ink-500">Masa magra</p>
-                    <p className="font-semibold tabular-nums">{calc.composition.leanMassKg} kg</p>
-                  </div>
-                )}
-                {calc.composition.bmi != null && (
-                  <div>
-                    <p className="text-ink-500">IMC</p>
-                    <p className="font-semibold tabular-nums">{calc.composition.bmi}</p>
-                  </div>
-                )}
-              </div>
-            )}
-            <p className="text-[10px] text-ink-500 pt-1">
-              Calculado de {gender === 'female' ? 'cintura + cadera − cuello' : 'cintura − cuello'} y altura.
+            <p className="text-[10px] text-ink-500">
+              De {gender === 'female' ? 'cintura + cadera − cuello' : 'cintura − cuello'} y altura (±3-4% vs DEXA).
             </p>
           </div>
         ) : (
           <p className="text-xs text-ink-600">
             {navyMissing
               ? gender === 'female'
-                ? 'Completa ⭐ cuello + cintura + cadera para calcular'
-                : 'Completa ⭐ cuello + cintura para calcular'
+                ? 'Completa ⭐ cuello + cintura + cadera para US Navy'
+                : 'Completa ⭐ cuello + cintura para US Navy'
               : 'Revisa que los valores sean válidos'}
           </p>
+        )}
+
+        {/* Deurenberg (si hay peso + altura + edad) */}
+        {c?.deurenbergBodyFatPct != null && (
+          <div className="flex items-baseline gap-2 pt-1 border-t border-primary-200/60">
+            <span className="text-base font-semibold text-primary-800 tabular-nums">
+              {c.deurenbergBodyFatPct}%
+            </span>
+            <span className="text-[10px] text-ink-500">
+              Deurenberg (BMI + edad, ±4%)
+            </span>
+          </div>
+        )}
+
+        {/* Grid: BMI + RCC + masa grasa + masa magra */}
+        {c && (c.bmi != null || c.waistHipRatio != null || c.fatMassKg != null) && (
+          <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-primary-200/60">
+            {c.bmi != null && (
+              <div>
+                <p className="text-ink-500">IMC</p>
+                <p className="font-semibold tabular-nums">{c.bmi}</p>
+              </div>
+            )}
+            {c.waistHipRatio != null && (
+              <div>
+                <p className="text-ink-500">
+                  RCC (cintura/cadera){' '}
+                  <span className="text-[9px]">· {WHR_RISK_LABELS[c.whrRisk]}</span>
+                </p>
+                <p className="font-semibold tabular-nums">{c.waistHipRatio}</p>
+              </div>
+            )}
+            {c.fatMassKg != null && (
+              <div>
+                <p className="text-ink-500">Masa grasa</p>
+                <p className="font-semibold tabular-nums">{c.fatMassKg} kg</p>
+              </div>
+            )}
+            {c.leanMassKg != null && (
+              <div>
+                <p className="text-ink-500">Masa magra</p>
+                <p className="font-semibold tabular-nums">{c.leanMassKg} kg</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -175,7 +215,7 @@ export default function BodyMeasurementsInput({ gender, heightCm, value, onChang
         </div>
       </div>
       <p className="text-[10px] text-ink-500 -mt-2">
-        ⭐ El % grasa se calcula automáticamente con US Navy (cuello + cintura{value.hipsCm || gender === 'female' ? ' + cadera' : ''}).
+        ⭐ US Navy: cuello + cintura{value.hipsCm || gender === 'female' ? ' + cadera' : ''} + altura. Deurenberg: BMI + edad. RCC: cintura ÷ cadera.
       </p>
 
       {/* US Navy necesarios */}

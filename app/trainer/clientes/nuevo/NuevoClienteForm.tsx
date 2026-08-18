@@ -192,6 +192,7 @@ export default function NuevoClienteForm() {
         <BodyMeasurementsInput
           gender={gender || null}
           heightCm={heightCm}
+          birthDate={birthDate || null}
           value={measurements}
           onChange={setMeasurements}
         />

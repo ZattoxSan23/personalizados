@@ -48,7 +48,9 @@ const loadClienteData = unstable_cache(
       ejercicios: Array<{
         id: string;
         sets: number;
-        reps: string;
+        trackingType?: 'reps' | 'time';
+        reps: string | null;
+        durationSeconds: number | null;
         weightKg: string | null;
         restSeconds: number | null;
         notes: string | null;
@@ -66,7 +68,9 @@ const loadClienteData = unstable_cache(
           dayOrder: routineDays.orderIndex,
           exId: routineExercises.id,
           exSets: routineExercises.sets,
+          exTrackingType: routineExercises.trackingType,
           exReps: routineExercises.reps,
+          exDurationSeconds: routineExercises.durationSeconds,
           exWeightKg: routineExercises.weightKg,
           exRestSeconds: routineExercises.restSeconds,
           exNotes: routineExercises.notes,
@@ -94,7 +98,9 @@ const loadClienteData = unstable_cache(
           byDay.get(r.dayId)!.ejercicios.push({
             id: r.exId,
             sets: r.exSets ?? 1,
-            reps: r.exReps ?? '',
+            trackingType: r.exTrackingType ?? 'reps',
+            reps: r.exReps,
+            durationSeconds: r.exDurationSeconds,
             weightKg: r.exWeightKg,
             restSeconds: r.exRestSeconds,
             notes: r.exNotes,
@@ -251,6 +257,7 @@ export default async function ClienteDetallePage({
         measurements={latestMeasurements}
         gender={data.cliente.gender}
         heightCm={data.cliente.heightCm ? Number(data.cliente.heightCm) : null}
+        birthDate={data.cliente.birthDate ?? null}
       />
 
       {!data.rutina && (

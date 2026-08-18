@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { requireTrainer } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { clients, payments } from '@/lib/db/schema';
-import { localDateString } from '@/lib/date';
+import { todayKeyInLima } from '@/lib/date';
 import { and, eq, gte, sql } from 'drizzle-orm';
 import {
   Users,
@@ -18,9 +18,9 @@ import {
 export const revalidate = 30;
 
 async function loadDashboardData(trainerId: string) {
-  const today = localDateString();
-  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString().slice(0, 7);
+  // ⚠️ "Hoy" e "inicio de mes" en zona horaria Lima (no UTC del servidor).
+  const today = todayKeyInLima();
+  const startOfMonth = today.slice(0, 7);
 
   // `today` puede usarse en el futuro para features de "hoy"
   void today;

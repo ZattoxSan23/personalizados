@@ -7,7 +7,9 @@ import { z } from 'zod';
 
 const Body = z.object({
   sets: z.number().int().min(1).max(20).optional(),
-  reps: z.string().min(1).max(40).optional(),
+  trackingType: z.enum(['reps', 'time']).optional(),
+  reps: z.string().min(1).max(40).nullable().optional(),
+  durationSeconds: z.number().int().min(5).max(3600).nullable().optional(),
   weightKg: z.number().nullable().optional(),
   restSeconds: z.number().int().min(10).max(600).optional(),
   notes: z.string().max(500).nullable().optional(),
@@ -38,7 +40,9 @@ export async function PATCH(
 
     const updates: Record<string, unknown> = {};
     if (body.sets !== undefined) updates.sets = body.sets;
+    if (body.trackingType !== undefined) updates.trackingType = body.trackingType;
     if (body.reps !== undefined) updates.reps = body.reps;
+    if (body.durationSeconds !== undefined) updates.durationSeconds = body.durationSeconds;
     if (body.weightKg !== undefined) updates.weightKg = body.weightKg != null ? String(body.weightKg) : null;
     if (body.restSeconds !== undefined) updates.restSeconds = body.restSeconds;
     if (body.notes !== undefined) updates.notes = body.notes;

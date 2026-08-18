@@ -327,6 +327,7 @@ export default function ClienteEditModal({
                   <BodyMeasurementsInput
                     gender={gender || null}
                     heightCm={heightCm ? Number(heightCm) : null}
+                    birthDate={birthDate || null}
                     value={measurements}
                     onChange={setMeasurements}
                   />

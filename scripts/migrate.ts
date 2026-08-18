@@ -183,6 +183,25 @@ const statements = [
   // queries rápidas y compatibilidad con datos viejos.
   `ALTER TABLE exercise_logs
     ADD COLUMN IF NOT EXISTS sets JSONB NOT NULL DEFAULT '[]'::jsonb`,
+
+  // === Series por tiempo (2026-08-17) ===
+  // tracking_type vive en routine_exercises (no en el catálogo exercises) para
+  // que el trainer elija por ejercicio: 'reps' (default) o 'time' (segundos).
+  // reps se vuelve nullable; duration_seconds se añade nullable. La UI valida
+  // que exactamente uno de los dos esté presente.
+  `ALTER TABLE routine_exercises
+    ADD COLUMN IF NOT EXISTS tracking_type TEXT NOT NULL DEFAULT 'reps'
+    CHECK (tracking_type IN ('reps','time'))`,
+  `ALTER TABLE routine_exercises
+    ADD COLUMN IF NOT EXISTS duration_seconds INTEGER
+    CHECK (duration_seconds IS NULL OR duration_seconds > 0)`,
+  `ALTER TABLE routine_exercises
+    ALTER COLUMN reps DROP NOT NULL`,
+  `ALTER TABLE exercise_logs
+    ADD COLUMN IF NOT EXISTS tracking_type TEXT
+    CHECK (tracking_type IS NULL OR tracking_type IN ('reps','time'))`,
+  `ALTER TABLE exercise_logs
+    ALTER COLUMN top_set_reps DROP NOT NULL`,
 ];
 
 async function main() {

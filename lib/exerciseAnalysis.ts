@@ -4,7 +4,10 @@ export interface RawLog {
   id: string;
   performedAt: Date | string;
   topSetWeightKg: string | null;
-  topSetReps: number;
+  /** Nullable: para ejercicios por tiempo (plancha, caminata...) no hay reps. */
+  topSetReps: number | null;
+  /** Duración del top set en segundos (solo para ejercicios por tiempo). */
+  topSetDurationSeconds?: number | null;
   setsCompleted: number;
   rpe: number | null;
   notes?: string | null;

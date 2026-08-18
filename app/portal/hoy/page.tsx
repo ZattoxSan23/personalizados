@@ -5,9 +5,9 @@ import {
   mealPlans, meals, exerciseLogs,
 } from '@/lib/db/schema';
 import { and, eq, desc, inArray, sql } from 'drizzle-orm';
+import { dayOfWeekInLima, toLimaDateString, todayLabelLima } from '@/lib/date';
 import SessionMode from './SessionMode';
 
-const DAYS_FULL = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const DAY_KEYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const;
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,9 @@ type ExerciseForUI = {
   nameEs: string;
   muscleGroup: string | null;
   sets: number;
-  reps: string;
+  trackingType: 'reps' | 'time';
+  reps: string | null;
+  durationSeconds: number | null;
   weightKg: string | null;
   restSeconds: number | null;
   notes: string | null;
@@ -33,7 +35,8 @@ type ExerciseForUI = {
 
 export default async function HoyPage() {
   const { clientId } = await requireClient();
-  const todayKey = DAY_KEYS[new Date().getDay()];
+  // ⚠️ Día actual en zona horaria Lima (no UTC del servidor).
+  const todayKey = DAY_KEYS[dayOfWeekInLima()];
 
   const [rutina] = await db.select().from(routines)
     .where(and(eq(routines.clientId, clientId), eq(routines.isActive, true)))
@@ -55,7 +58,9 @@ export default async function HoyPage() {
           nameEs: exercises.nameEs,
           muscleGroup: exercises.muscleGroup,
           sets: routineExercises.sets,
+          trackingType: routineExercises.trackingType,
           reps: routineExercises.reps,
+          durationSeconds: routineExercises.durationSeconds,
           weightKg: routineExercises.weightKg,
           restSeconds: routineExercises.restSeconds,
           notes: routineExercises.notes,
@@ -93,14 +98,15 @@ export default async function HoyPage() {
           const list = logsByRe[log.routineExerciseId] ?? [];
           if (list.length >= 8) continue;
           const w = log.topSetWeightKg ? Number(log.topSetWeightKg) : 0;
-          const r = log.topSetReps;
-          const sets = (log.sets ?? []) as Array<{ weight: number; reps: number; completed: boolean }>;
+          const r = log.topSetReps; // puede ser null si el ejercicio es por tiempo
+          const sets = (log.sets ?? []) as Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
           const completed = sets.filter((s) => s.completed);
           const volume = completed.reduce((sum, s) => sum + s.weight * s.reps, 0);
           list.push({
             weight: w,
-            reps: r,
-            date: typeof log.performedAt === 'string' ? log.performedAt : log.performedAt.toISOString().split('T')[0],
+            reps: r ?? 0,
+            // ⚠️ Fecha del log en zona horaria Lima (no UTC del servidor).
+            date: toLimaDateString(log.performedAt),
             volume: Math.round(volume),
             rpe: log.rpe,
           });
@@ -148,7 +154,7 @@ export default async function HoyPage() {
       .orderBy(meals.scheduledTime);
   }
 
-  const todayLabel = `${DAYS_FULL[new Date().getDay()]}, ${new Date().toLocaleDateString('es-PE', { day: 'numeric', month: 'long' })}`;
+  const todayLabel = todayLabelLima();
 
   return (
     <SessionMode

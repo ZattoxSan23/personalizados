@@ -12,7 +12,11 @@ type Exercise = {
   nameEs: string;
   muscleGroup: string | null;
   sets: number;
-  reps: string;
+  trackingType: 'reps' | 'time';
+  /** Reps objetivo (null si el ejercicio es por tiempo). */
+  reps: string | null;
+  /** Duración objetivo en segundos (null si el ejercicio es por reps). */
+  durationSeconds: number | null;
   weightKg: string | null;
   restSeconds: number | null;
   notes: string | null;
@@ -164,7 +168,9 @@ function ExerciseCard({ ex, idx }: { ex: Exercise; idx: number }) {
           </div>
           <div className="flex items-center gap-1.5 mt-1 text-xs text-ink-500 flex-wrap">
             <span className="bg-ink-100 rounded px-1.5 py-0.5 font-medium">
-              meta {ex.sets} × {ex.reps}
+              meta {ex.sets} × {ex.trackingType === 'time' && ex.durationSeconds
+                ? `${ex.durationSeconds}s`
+                : (ex.reps ?? '—')}
               {ex.weightKg && <> @ {ex.weightKg}kg</>}
             </span>
             {ex.trend != null && Math.abs(ex.trend) >= 0.5 && (

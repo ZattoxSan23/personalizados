@@ -6,13 +6,18 @@ import {
 } from 'lucide-react';
 import { toast } from '@/app/components/Toast';
 import type { ExerciseSetEntry } from '@/lib/db/schema';
-import { localDatetimeInputValue, localInputToIso } from '@/lib/date';
+import { localDatetimeInputValueLima, localInputToIso } from '@/lib/date';
 
 interface Props {
   routineExerciseId: string;
   exerciseName: string;
   suggestedSets: number;
-  suggestedReps: string;
+  /** Repeticiones objetivo (p.ej. "8-12"). Null cuando el ejercicio es por tiempo. */
+  suggestedReps: string | null;
+  /** Duración objetivo en segundos (solo cuando trackingType='time'). */
+  suggestedDurationSeconds?: number | null;
+  /** Tipo de tracking. Default 'reps'. Si es 'time' el input muestra segundos. */
+  trackingType?: 'reps' | 'time';
   suggestedWeightKg?: number | null;
   /** Si false, oculta el badge de meta sugerida (p.ej. cuando se renderiza dentro de un card ya con meta). */
   showSuggestion?: boolean;
@@ -51,16 +56,21 @@ export default function LogExerciseSets({
   exerciseName,
   suggestedSets,
   suggestedReps,
+  suggestedDurationSeconds = null,
+  trackingType = 'reps',
   suggestedWeightKg = null,
   showSuggestion = true,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const initialSet = trackingType === 'time'
+    ? { weight: 0, reps: 0, durationSeconds: 0, completed: false }
+    : { weight: 0, reps: 0, completed: false };
   const [sets, setSets] = useState<ExerciseSetEntry[]>(() =>
-    Array.from({ length: suggestedSets }, () => ({ weight: 0, reps: 0, completed: false })),
+    Array.from({ length: suggestedSets }, () => ({ ...initialSet })),
   );
   const [rpe, setRpe] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
-  const [performedAt, setPerformedAt] = useState(localDatetimeInputValue());
+  const [performedAt, setPerformedAt] = useState(localDatetimeInputValueLima());
   const [saving, setSaving] = useState(false);
 
   const [analysis, setAnalysis] = useState<SessionAnalysis | null>(null);
@@ -94,7 +104,7 @@ export default function LogExerciseSets({
   }
 
   function addSet() {
-    setSets((prev) => [...prev, { weight: 0, reps: 0, completed: false }]);
+    setSets((prev) => [...prev, { ...initialSet }]);
   }
 
   function removeSet(idx: number) {
@@ -103,11 +113,15 @@ export default function LogExerciseSets({
   }
 
   async function save() {
-    const validSets = sets.filter(
-      (s) => s.completed && s.weight > 0 && s.reps > 0,
-    );
+    // Validación según trackingType
+    const isValid = trackingType === 'time'
+      ? (s: ExerciseSetEntry) => s.completed && s.durationSeconds != null && s.durationSeconds > 0
+      : (s: ExerciseSetEntry) => s.completed && s.weight > 0 && s.reps > 0;
+    const validSets = sets.filter(isValid);
     if (validSets.length === 0) {
-      toast('error', 'Completa al menos una serie con peso y reps');
+      toast('error', trackingType === 'time'
+        ? 'Completa al menos una serie con duración'
+        : 'Completa al menos una serie con peso y reps');
       return;
     }
     const performedAtIso = localInputToIso(performedAt);
@@ -127,11 +141,18 @@ export default function LogExerciseSets({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           routineExerciseId,
-          sets: sets.map((s) => ({
-            weight: s.weight || 0,
-            reps: s.reps || 0,
-            completed: s.completed && s.weight > 0 && s.reps > 0,
-          })),
+          trackingType,
+          sets: sets.map((s) => {
+            const base = {
+              weight: s.weight || 0,
+              reps: trackingType === 'time' ? 0 : (s.reps || 0),
+              completed: isValid(s),
+            } as ExerciseSetEntry;
+            if (trackingType === 'time') {
+              base.durationSeconds = s.durationSeconds ?? 0;
+            }
+            return base;
+          }),
           rpe,
           notes: notes.trim() || null,
           performedAt: performedAtIso,
@@ -179,6 +200,9 @@ export default function LogExerciseSets({
         toast('success', main);
       }
 
+      // LogExerciseSets también muestra el PR histórico arriba (header con trophy)
+      // — el top set histórico usa los campos del análisis, no necesitamos tocarlo.
+
       // Aviso extra: el cliente ya puede ver este registro
       setTimeout(() => {
         toast('info', 'El cliente ya puede ver este registro en su portal');
@@ -187,11 +211,7 @@ export default function LogExerciseSets({
       setNotes('');
       setRpe(null);
       setSets(
-        Array.from({ length: suggestedSets }, () => ({
-          weight: 0,
-          reps: 0,
-          completed: false,
-        })),
+        Array.from({ length: suggestedSets }, () => ({ ...initialSet })),
       );
 
       setAnalysisLoaded(false);
@@ -265,7 +285,9 @@ export default function LogExerciseSets({
             <p className="text-[10px] text-ink-500 uppercase tracking-wide font-semibold mb-1">
               {exerciseName}{' '}
               <span className="font-normal normal-case text-ink-400">
-                · {suggestedReps} reps objetivo
+                · {trackingType === 'time'
+                  ? `meta ${suggestedDurationSeconds ?? '—'}s`
+                  : `${suggestedReps ?? '—'} reps objetivo`}
                 {showSuggestion && suggestedWeightKg != null && (
                   <> · meta {suggestedWeightKg}kg</>
                 )}
@@ -289,6 +311,7 @@ export default function LogExerciseSets({
                   Set {idx + 1}
                 </span>
                 <div className="flex items-center gap-1 flex-1">
+                  {/* Peso (opcional incluso en ejercicios por tiempo) */}
                   <input
                     type="number"
                     step="0.5"
@@ -299,15 +322,30 @@ export default function LogExerciseSets({
                     placeholder="kg"
                   />
                   <span className="text-ink-400 text-xs">×</span>
-                  <input
-                    type="number"
-                    step="1"
-                    inputMode="numeric"
-                    value={s.reps || ''}
-                    onChange={(e) => updateSet(idx, { reps: Number(e.target.value) || 0 })}
-                    className="input text-sm py-1 px-2 w-14 tabular-nums text-center"
-                    placeholder="reps"
-                  />
+                  {/* Reps o Tiempo según trackingType */}
+                  {trackingType === 'time' ? (
+                    <input
+                      type="number"
+                      step="5"
+                      inputMode="numeric"
+                      min={5}
+                      value={s.durationSeconds || ''}
+                      onChange={(e) => updateSet(idx, { durationSeconds: Number(e.target.value) || 0 })}
+                      className="input text-sm py-1 px-2 w-14 tabular-nums text-center"
+                      placeholder="seg"
+                      aria-label="Duración en segundos"
+                    />
+                  ) : (
+                    <input
+                      type="number"
+                      step="1"
+                      inputMode="numeric"
+                      value={s.reps || ''}
+                      onChange={(e) => updateSet(idx, { reps: Number(e.target.value) || 0 })}
+                      className="input text-sm py-1 px-2 w-14 tabular-nums text-center"
+                      placeholder="reps"
+                    />
+                  )}
                 </div>
                 {sets.length > 1 && (
                   <button
@@ -346,7 +384,11 @@ export default function LogExerciseSets({
               </div>
               <div>
                 <p className="text-sm font-bold tabular-nums">
-                  {summary.topSet ? `${summary.topSet.w}×${summary.topSet.r}` : '—'}
+                  {summary.topSet
+                    ? trackingType === 'time'
+                      ? `${summary.topSet.w}kg · ${summary.topSet.d ?? 0}s`
+                      : `${summary.topSet.w}×${summary.topSet.r}`
+                    : '—'}
                 </p>
                 <p className="text-[9px] text-ink-500 uppercase tracking-wide">Top set</p>
               </div>
@@ -364,7 +406,7 @@ export default function LogExerciseSets({
                 value={performedAt}
                 onChange={(e) => setPerformedAt(e.target.value)}
                 className="input text-xs py-1 px-2 flex-1 tabular-nums"
-                max={localDatetimeInputValue()}
+                max={localDatetimeInputValueLima()}
               />
             </div>
             <div className="flex items-center gap-2">
@@ -416,10 +458,16 @@ export default function LogExerciseSets({
 }
 
 function calcSummary(sets: ExerciseSetEntry[]) {
-  const completed = sets.filter((s) => s.completed && s.weight > 0 && s.reps > 0);
-  const volume = completed.reduce((sum, s) => sum + s.weight * s.reps, 0);
-  const topSet = completed.reduce<{ w: number; r: number } | null>(
-    (best, s) => (!best || s.weight > best.w ? { w: s.weight, r: s.reps } : best),
+  // Filtramos completadas (peso > 0 Y (reps > 0 O durationSeconds > 0))
+  const completed = sets.filter(
+    (s) => s.completed && s.weight > 0 && (s.reps > 0 || (s.durationSeconds ?? 0) > 0),
+  );
+  const volume = completed.reduce(
+    (sum, s) => sum + s.weight * (s.reps > 0 ? s.reps : 0),
+    0,
+  );
+  const topSet = completed.reduce<{ w: number; r: number; d?: number } | null>(
+    (best, s) => (!best || s.weight > best.w ? { w: s.weight, r: s.reps, d: s.durationSeconds } : best),
     null,
   );
   return {

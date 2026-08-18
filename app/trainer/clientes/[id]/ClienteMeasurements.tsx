@@ -3,7 +3,10 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Pencil, Ruler, Calendar } from 'lucide-react';
-import { calcBodyFatNavy, calcBodyComposition, CATEGORY_LABELS } from '@/lib/us-navy';
+import {
+  calcBodyFatNavy, calcBodyComposition,
+  CATEGORY_LABELS, WHR_RISK_LABELS,
+} from '@/lib/us-navy';
 
 type Measurements = {
   weightKg: number | null;
@@ -40,11 +43,13 @@ export default function ClienteMeasurements({
   measurements,
   gender,
   heightCm,
+  birthDate,
 }: {
   clienteId: string;
   measurements: Measurements | null;
   gender: string | null;
   heightCm: number | null;
+  birthDate?: string | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -56,17 +61,29 @@ export default function ClienteMeasurements({
   });
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-calc US Navy en vivo
+  // Auto-calc US Navy + Deurenberg + RCC + IMC en vivo
   const calc = useMemo(() => {
+    const g = (gender as 'male' | 'female' | null) ?? null;
     const navy = calcBodyFatNavy({
-      gender: (gender as 'male' | 'female' | null) ?? null,
+      gender: g,
       heightCm,
       neckCm: draft.neckCm,
       waistCm: draft.waistCm,
       hipsCm: draft.hipsCm,
     });
-    return { navy };
-  }, [gender, heightCm, draft.neckCm, draft.waistCm, draft.hipsCm]);
+    const composition = calcBodyComposition(
+      {
+        gender: g,
+        heightCm,
+        neckCm: draft.neckCm,
+        waistCm: draft.waistCm,
+        hipsCm: draft.hipsCm,
+        birthDate: birthDate ?? null,
+      },
+      draft.weightKg,
+    );
+    return { navy, composition };
+  }, [gender, heightCm, birthDate, draft.neckCm, draft.waistCm, draft.hipsCm, draft.weightKg]);
 
   function startEdit() {
     setDraft(measurements ?? draft);
@@ -187,10 +204,21 @@ export default function ClienteMeasurements({
             ))}
           </div>
 
-          {/* US Navy live */}
-          {calc.navy != null && (
-            <div className="rounded-lg bg-primary-50 border border-primary-200 p-2 text-xs text-primary-800">
-              ✨ US Navy: <strong>{calc.navy}%</strong> de grasa corporal
+          {/* US Navy + Deurenberg + RCC live */}
+          {(calc.navy != null || calc.composition?.deurenbergBodyFatPct != null || calc.composition?.waistHipRatio != null) && (
+            <div className="rounded-lg bg-primary-50 border border-primary-200 p-2 text-xs text-primary-800 space-y-1">
+              {calc.navy != null && (
+                <p>✨ US Navy: <strong>{calc.navy}%</strong> grasa</p>
+              )}
+              {calc.composition?.deurenbergBodyFatPct != null && (
+                <p>📊 Deurenberg: <strong>{calc.composition.deurenbergBodyFatPct}%</strong> grasa (BMI + edad)</p>
+              )}
+              {calc.composition?.waistHipRatio != null && (
+                <p>📏 RCC: <strong>{calc.composition.waistHipRatio}</strong> (cintura/cadera) · {WHR_RISK_LABELS[calc.composition.whrRisk]}</p>
+              )}
+              {calc.composition?.ageYears != null && (
+                <p>🎂 <strong>{calc.composition.ageYears}</strong> años</p>
+              )}
             </div>
           )}
 
