@@ -154,6 +154,55 @@ export default async function HoyPage() {
       .orderBy(meals.scheduledTime);
   }
 
+  // === Resumen semanal motivador ===
+  // Calculamos sesiones y volumen de los últimos 7 días para mostrar al cliente
+  // un resumen concreto de su progreso.
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+  const sevenDaysAgoKey = toLimaDateString(sevenDaysAgo);
+
+  const weeklyLogs = await db
+    .select({
+      performedAt: exerciseLogs.performedAt,
+      topSetWeightKg: exerciseLogs.topSetWeightKg,
+      topSetReps: exerciseLogs.topSetReps,
+      sets: exerciseLogs.sets,
+    })
+    .from(exerciseLogs)
+    .where(and(
+      eq(exerciseLogs.clientId, clientId),
+    ))
+    .orderBy(desc(exerciseLogs.performedAt))
+    .limit(200);
+
+  let weeklySessions = 0;
+  let weeklyVolume = 0;
+  let weeklyPrCount = 0;
+  const seenPrExercises = new Set<string>();
+
+  for (const log of weeklyLogs) {
+    const dateStr = toLimaDateString(log.performedAt);
+    if (dateStr < sevenDaysAgoKey) break;
+    weeklySessions++;
+    const sets = (log.sets ?? []) as Array<{ weight: number; reps: number; durationSeconds?: number; completed: boolean }>;
+    weeklyVolume += sets.filter((s) => s.completed).reduce((sum, s) => sum + s.weight * s.reps, 0);
+  }
+
+  // PRs nuevos en la semana: contar ejercicios cuyo prWeight fue establecido
+  // en un log de los últimos 7 días.
+  for (const ej of ejercicios) {
+    if (ej.prWeight > 0 && ej.lastDate && ej.lastDate >= sevenDaysAgoKey) {
+      weeklyPrCount++;
+    }
+  }
+
+  const weeklySummary = {
+    sessions: weeklySessions,
+    volumeKg: Math.round(weeklyVolume),
+    prCount: weeklyPrCount,
+    hasData: weeklySessions > 0,
+  };
+
   const todayLabel = todayLabelLima();
 
   return (
@@ -164,6 +213,7 @@ export default async function HoyPage() {
       diaRutinaName={diaRutina?.name ?? null}
       ejercicios={ejercicios}
       meals={mealsHoy}
+      weeklySummary={weeklySummary}
     />
   );
 }

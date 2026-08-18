@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {
   Trophy, Dumbbell, UtensilsCrossed, Sparkles, Calendar, Flame,
-  CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Lightbulb, Palmtree, Eye,
+  CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Lightbulb, Palmtree, Eye, Activity, Zap,
 } from 'lucide-react';
 import { Sparkline } from '@/app/components/Sparkline';
 
@@ -56,12 +56,20 @@ const MEAL_LABELS: Record<string, string> = {
   snack2: 'Snack PM',
 };
 
+type WeeklySummary = {
+  sessions: number;
+  volumeKg: number;
+  prCount: number;
+  hasData: boolean;
+};
+
 export default function SessionMode({
   todayLabel,
   isRestDay,
   diaRutinaName,
   ejercicios,
   meals,
+  weeklySummary,
 }: {
   clientId: string;
   todayLabel: string;
@@ -69,6 +77,7 @@ export default function SessionMode({
   diaRutinaName: string | null;
   ejercicios: Exercise[];
   meals: Meal[];
+  weeklySummary?: WeeklySummary;
 }) {
   return (
     <div className="space-y-5 pb-32">
@@ -83,6 +92,38 @@ export default function SessionMode({
           <p className="text-sm text-ink-500 mt-1">{diaRutinaName}</p>
         )}
       </header>
+
+      {/* Resumen semanal motivador */}
+      {weeklySummary && weeklySummary.hasData && (
+        <section className="rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 text-white p-4 shadow-card">
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="w-4 h-4" />
+            <h2 className="font-bold text-sm uppercase tracking-wider">Tu semana</h2>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat
+              label="Sesiones"
+              value={weeklySummary.sessions.toString()}
+              icon={Dumbbell}
+            />
+            <Stat
+              label="Volumen"
+              value={`${weeklySummary.volumeKg}kg`}
+              icon={Zap}
+            />
+            <Stat
+              label="PRs nuevos"
+              value={weeklySummary.prCount.toString()}
+              icon={Trophy}
+            />
+          </div>
+          {weeklySummary.prCount > 0 && (
+            <p className="text-xs mt-3 pt-3 border-t border-white/20 text-center">
+              ¡{weeklySummary.prCount} {weeklySummary.prCount === 1 ? 'PR nuevo' : 'PRs nuevos'} esta semana! 🎉
+            </p>
+          )}
+        </section>
+      )}
 
       {isRestDay ? (
         <RestDayCard />
@@ -134,6 +175,18 @@ export default function SessionMode({
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: any }) {
+  return (
+    <div className="text-center">
+      <div className="flex items-center justify-center mb-1 opacity-80">
+        <Icon className="w-3.5 h-3.5" />
+      </div>
+      <p className="text-2xl font-extrabold tabular-nums leading-none">{value}</p>
+      <p className="text-[10px] uppercase tracking-wider opacity-80 mt-1.5 font-semibold">{label}</p>
     </div>
   );
 }
