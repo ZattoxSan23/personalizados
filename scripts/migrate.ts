@@ -202,6 +202,10 @@ const statements = [
     CHECK (tracking_type IS NULL OR tracking_type IN ('reps','time'))`,
   `ALTER TABLE exercise_logs
     ALTER COLUMN top_set_reps DROP NOT NULL`,
+  // Duración del top set en segundos (solo para ejercicios por tiempo:
+  // plancha, caminata, etc.). Nullable en todos los casos.
+  `ALTER TABLE exercise_logs
+    ADD COLUMN IF NOT EXISTS top_set_duration_seconds INTEGER`,
 ];
 
 async function main() {

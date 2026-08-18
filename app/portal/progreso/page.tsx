@@ -16,6 +16,15 @@ import HumanBodySVG, {
   type MuscleDatum, type MuscleKey, type MuscleTrend,
 } from '@/app/components/HumanBodySVG';
 import { todayKeyInLima } from '@/lib/date';
+import {
+  calcBodyComposition,
+  CATEGORY_LABELS,
+  WHR_RISK_LABELS,
+  ageFromBirthDate,
+  calcWaistHipRatio,
+  whrRiskCategory,
+  type Gender,
+} from '@/lib/us-navy';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,28 +34,28 @@ const NUM = (v: string | null | undefined): number | null =>
 // Mensajes motivadores según delta
 function weightMessage(delta: number | null, prevWeight: number | null): string {
   if (delta == null || prevWeight == null) return 'Pídele a tu coach que registre tu peso este mes.';
-  if (delta < -1) return `¡${Math.abs(delta).toFixed(1)} kg menos que el mes pasado! Sigue así 💪`;
+  if (delta < -1) return `¡${Math.abs(delta).toFixed(1)} kg menos que el mes pasado! Sigue así`;
   if (delta < 0) return `Bajaste ${Math.abs(delta).toFixed(1)} kg. Pequeño gran paso.`;
   if (Math.abs(delta) < 0.5) return 'Tu peso se mantuvo. Si estás en recomposición, es buena señal.';
   return `Subiste ${delta.toFixed(1)} kg. Si es músculo, excelente.`;
 }
 function bfMessage(delta: number | null): string {
   if (delta == null) return 'Pídele a tu coach que registre cuello+cintura (±cadera) para calcular tu % grasa.';
-  if (delta < -1) return `¡${Math.abs(delta).toFixed(1)}% menos grasa! Tu esfuerzo se nota 🔥`;
+  if (delta < -1) return `¡${Math.abs(delta).toFixed(1)}% menos grasa! Tu esfuerzo se nota`;
   if (delta < 0) return `Bajaste ${Math.abs(delta).toFixed(1)}% de grasa.`;
   if (Math.abs(delta) < 0.5) return 'Tu % grasa está estable.';
   return `Subió ${delta.toFixed(1)}%. Ajustemos el plan si es necesario.`;
 }
 function waistMessage(delta: number | null): string {
   if (delta == null) return 'Necesitamos tu medida de cintura para ver progreso.';
-  if (delta < -1) return `¡Cintura -${Math.abs(delta).toFixed(1)} cm! Tu silueta cambió ✨`;
+  if (delta < -1) return `¡Cintura -${Math.abs(delta).toFixed(1)} cm! Tu silueta cambió`;
   if (delta < 0) return `Cintura -${Math.abs(delta).toFixed(1)} cm. Vas bien.`;
   if (Math.abs(delta) < 0.5) return 'Cintura estable este mes.';
   return `Cintura +${delta.toFixed(1)} cm.`;
 }
 function cmUpMessage(delta: number | null, name: string): string {
   if (delta == null) return `Necesitamos medida de ${name} para ver progreso.`;
-  if (delta > 0.5) return `¡${name} +${delta.toFixed(1)} cm! Ganaste volumen 💪`;
+  if (delta > 0.5) return `¡${name} +${delta.toFixed(1)} cm! Ganaste volumen`;
   if (delta > 0) return `+${delta.toFixed(1)} cm en ${name}.`;
   if (Math.abs(delta) < 0.5) return `${name} estable.`;
   return `${name} -${Math.abs(delta).toFixed(1)} cm.`;
@@ -164,8 +173,8 @@ export default async function ProgresoPage() {
     pecho: NUM(e.chestCm),
   })).filter((d) => d.peso != null || d.grasa != null || d.cintura != null || d.pecho != null);
 
-  // Series para sparklines
-  const series = (key: 'weightKg' | 'bodyFatPct' | 'waistCm' | 'chestCm' | 'bicepFlexCm' | 'thighCm' | 'shoulderCm') =>
+  // Series para sparklines (subset limitado a las que se usan en BigKPI)
+  const sparklineSeries = (key: 'weightKg' | 'bodyFatPct' | 'waistCm' | 'chestCm' | 'bicepFlexCm' | 'thighCm' | 'shoulderCm') =>
     [...entries].reverse().map((e) => NUM(e[key])).filter((v): v is number => v != null);
 
   // Datos para HumanBodySVG. Si solo hay 1 medición (no hay mes pasado para
@@ -213,6 +222,45 @@ export default async function ProgresoPage() {
       waistCurr,
     ),
   };
+
+  // === Composición corporal (TODAS las fórmulas de lib/us-navy.ts) ===
+  // Usa Navy, Deurenberg, BMI, WHR, masa grasa/magra, categoría ACE, edad.
+  const composition = calcBodyComposition(
+    {
+      gender: (client?.gender as Gender | null) ?? null,
+      heightCm: client?.heightCm ? Number(client.heightCm) : null,
+      neckCm: NUM(last?.neckCm),
+      waistCm: waistCurr,
+      hipsCm: NUM(last?.hipsCm),
+      birthDate: client?.birthDate ?? null,
+    },
+    weightCurr,
+  );
+
+  // Mapa de TODAS las medidas con valor actual y delta vs mes pasado.
+  // Orden pensado para que el grid se lea de arriba (cabeza) hacia abajo (pies).
+  const allMeasurements: Array<{
+    key: string;
+    label: string;
+    curr: number | null;
+    prev: number | null;
+    unit: string;
+  }> = [
+    { key: 'neckCm',     label: 'Cuello',          curr: NUM(last?.neckCm),     prev: NUM(previousMonth?.neckCm),     unit: 'cm' },
+    { key: 'shoulderCm', label: 'Hombros',         curr: NUM(last?.shoulderCm), prev: NUM(previousMonth?.shoulderCm), unit: 'cm' },
+    { key: 'chestCm',    label: 'Pecho',           curr: NUM(last?.chestCm),    prev: NUM(previousMonth?.chestCm),    unit: 'cm' },
+    { key: 'waistCm',    label: 'Cintura',         curr: waistCurr,              prev: waistPrev,                     unit: 'cm' },
+    { key: 'hipsCm',     label: 'Cadera',          curr: NUM(last?.hipsCm),     prev: NUM(previousMonth?.hipsCm),     unit: 'cm' },
+    { key: 'bicepFlexCm',   label: 'Bícep flex',    curr: bicepCurr,              prev: bicepPrev,                     unit: 'cm' },
+    { key: 'bicepRelaxedCm',label: 'Bícep relaj',   curr: NUM(last?.bicepRelaxedCm), prev: NUM(previousMonth?.bicepRelaxedCm), unit: 'cm' },
+    { key: 'forearmCm',  label: 'Antebrazo',       curr: NUM(last?.forearmCm),  prev: NUM(previousMonth?.forearmCm),  unit: 'cm' },
+    { key: 'thighCm',    label: 'Muslo',           curr: thighCurr,              prev: thighPrev,                     unit: 'cm' },
+    { key: 'calfCm',     label: 'Pantorrilla',     curr: NUM(last?.calfCm),     prev: NUM(previousMonth?.calfCm),     unit: 'cm' },
+  ];
+
+  // Series de mediciones para gráficas individuales de evolución
+  const series = (key: 'weightKg' | 'bodyFatPct' | 'waistCm' | 'chestCm' | 'bicepFlexCm' | 'thighCm' | 'calfCm') =>
+    [...entries].reverse().map((e) => NUM(e[key])).filter((v): v is number => v != null);
 
   // Racha: cuántas mediciones lleva registradas en los últimos 30 días
   const today = todayKeyInLima();
@@ -278,7 +326,7 @@ export default async function ProgresoPage() {
             delta={weightDelta}
             deltaGood="down"
             message={weightMessage(weightDelta, weightPrev)}
-            series={series('weightKg')}
+            series={sparklineSeries('weightKg')}
             accentColor="#16a34a"
           />
           <BigKPI
@@ -291,7 +339,7 @@ export default async function ProgresoPage() {
             delta={bfDelta}
             deltaGood="down"
             message={bfMessage(bfDelta)}
-            series={series('bodyFatPct')}
+            series={sparklineSeries('bodyFatPct')}
             accentColor="#ef4444"
           />
           <BigKPI
@@ -304,7 +352,7 @@ export default async function ProgresoPage() {
             delta={waistDelta}
             deltaGood="down"
             message={waistMessage(waistDelta)}
-            series={series('waistCm')}
+            series={sparklineSeries('waistCm')}
             accentColor="#f59e0b"
           />
           <BigKPI
@@ -341,6 +389,229 @@ export default async function ProgresoPage() {
         </p>
         <HumanBodySVG data={muscleData} />
       </section>
+
+      {/* SECCIÓN PREMIUM: TUS MEDIDAS CORPORALES (solo lectura) */}
+      {last && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold text-ink-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Scale className="w-3.5 h-3.5" /> Tus medidas
+          </h2>
+
+          {/* Composición corporal: TODAS las fórmulas de lib/us-navy.ts */}
+          {composition && (
+            <div className="card space-y-3 bg-gradient-to-br from-primary-50/40 via-white to-accent-50/30 border-primary-200">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-ink-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-primary-600" />
+                  Composición corporal
+                </h3>
+                {composition.ageYears != null && (
+                  <span className="text-[10px] text-ink-500 uppercase tracking-wider tabular-nums">
+                    {composition.ageYears} años
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {/* % Grasa US Navy */}
+                <div className="rounded-lg bg-white/80 p-3 text-center border border-ink-100">
+                  <p className="text-[10px] text-ink-500 uppercase tracking-wider font-semibold">
+                    Grasa US Navy
+                  </p>
+                  {composition.bodyFatPct != null ? (
+                    <>
+                      <p className="text-2xl font-extrabold tabular-nums text-ink-900 mt-0.5">
+                        {composition.bodyFatPct}%
+                      </p>
+                      <p className="text-[10px] text-ink-500 mt-0.5">
+                        {CATEGORY_LABELS[composition.category]}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-ink-400 mt-1">Falta cuello+cadera</p>
+                  )}
+                </div>
+
+                {/* % Grasa Deurenberg */}
+                <div className="rounded-lg bg-white/80 p-3 text-center border border-ink-100">
+                  <p className="text-[10px] text-ink-500 uppercase tracking-wider font-semibold">
+                    Grasa Deurenberg
+                  </p>
+                  {composition.deurenbergBodyFatPct != null ? (
+                    <>
+                      <p className="text-2xl font-extrabold tabular-nums text-ink-900 mt-0.5">
+                        {composition.deurenbergBodyFatPct}%
+                      </p>
+                      <p className="text-[10px] text-ink-500 mt-0.5">BMI + edad</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-ink-400 mt-1">Falta BMI o edad</p>
+                  )}
+                </div>
+
+                {/* IMC */}
+                <div className="rounded-lg bg-white/80 p-3 text-center border border-ink-100">
+                  <p className="text-[10px] text-ink-500 uppercase tracking-wider font-semibold">
+                    IMC
+                  </p>
+                  {composition.bmi != null ? (
+                    <p className="text-2xl font-extrabold tabular-nums text-ink-900 mt-0.5">
+                      {composition.bmi}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-ink-400 mt-1">Falta peso+altura</p>
+                  )}
+                </div>
+
+                {/* RCC (WHR) */}
+                <div className="rounded-lg bg-white/80 p-3 text-center border border-ink-100">
+                  <p className="text-[10px] text-ink-500 uppercase tracking-wider font-semibold">
+                    RCC (cintura/cadera)
+                  </p>
+                  {composition.waistHipRatio != null ? (
+                    <>
+                      <p className="text-2xl font-extrabold tabular-nums text-ink-900 mt-0.5">
+                        {composition.waistHipRatio}
+                      </p>
+                      <p className="text-[10px] text-ink-500 mt-0.5">
+                        Riesgo: {WHR_RISK_LABELS[composition.whrRisk]}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-ink-400 mt-1">Falta cintura+cadera</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Resumen de masa grasa / masa magra */}
+              {(composition.fatMassKg != null || composition.leanMassKg != null) && (
+                <div className="rounded-lg bg-ink-900 text-white p-3 flex items-center justify-between">
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] uppercase tracking-wider opacity-70 font-semibold">
+                      Masa grasa
+                    </p>
+                    <p className="text-xl font-extrabold tabular-nums leading-none mt-0.5">
+                      {composition.fatMassKg ?? '—'}
+                      <span className="text-xs opacity-70 ml-0.5">kg</span>
+                    </p>
+                  </div>
+                  <div className="h-8 w-px bg-white/20" />
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] uppercase tracking-wider opacity-70 font-semibold">
+                      Masa magra
+                    </p>
+                    <p className="text-xl font-extrabold tabular-nums leading-none mt-0.5">
+                      {composition.leanMassKg ?? '—'}
+                      <span className="text-xs opacity-70 ml-0.5">kg</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Grid de TODAS las medidas corporales */}
+          <div className="card space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-ink-900 flex items-center gap-2">
+                <Ruler className="w-4 h-4 text-primary-600" />
+                Medidas corporales
+              </h3>
+              <span className="text-[10px] text-ink-500 uppercase tracking-wider tabular-nums">
+                {last.recordedAt}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {allMeasurements.map((m) => {
+                const delta = m.curr != null && m.prev != null ? +(m.curr - m.prev).toFixed(1) : null;
+                const isDown = (client?.gender === 'female' && ['waistCm', 'hipsCm'].includes(m.key)) || false;
+                return (
+                  <div key={m.key} className="bg-ink-50 rounded-lg p-2.5 text-center">
+                    <p className="text-[10px] font-semibold text-ink-500 uppercase tracking-wider">
+                      {m.label}
+                    </p>
+                    {m.curr != null ? (
+                      <>
+                        <p className="text-lg font-extrabold tabular-nums text-ink-900 leading-none mt-1">
+                          {m.curr.toFixed(1)}
+                          <span className="text-[10px] text-ink-500 ml-0.5">{m.unit}</span>
+                        </p>
+                        {delta != null && Math.abs(delta) >= 0.1 && (
+                          <p
+                            className={`text-[10px] font-bold mt-1 tabular-nums ${
+                              Math.abs(delta) < 0.5
+                                ? 'text-ink-400'
+                                : 'text-success'
+                            }`}
+                          >
+                            {delta > 0 ? '+' : ''}{delta.toFixed(1)} vs mes anterior
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-ink-400 mt-1 italic">sin dato</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Gráficas individuales de evolución (recharts) */}
+          {chartData.length >= 2 && (
+            <div className="card space-y-3">
+              <h3 className="font-bold text-ink-900 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-primary-600" />
+                Evolución detallada
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <EvolutionSpark
+                  title="Peso"
+                  unit="kg"
+                  values={series('weightKg')}
+                  color="#16a34a"
+                />
+                <EvolutionSpark
+                  title="% Grasa"
+                  unit="%"
+                  values={series('bodyFatPct')}
+                  color="#ef4444"
+                />
+                <EvolutionSpark
+                  title="Cintura"
+                  unit="cm"
+                  values={series('waistCm')}
+                  color="#f59e0b"
+                />
+                <EvolutionSpark
+                  title="Pecho"
+                  unit="cm"
+                  values={series('chestCm')}
+                  color="#3b82f6"
+                />
+                <EvolutionSpark
+                  title="Bícep"
+                  unit="cm"
+                  values={series('bicepFlexCm')}
+                  color="#8b5cf6"
+                />
+                <EvolutionSpark
+                  title="Muslo"
+                  unit="cm"
+                  values={series('thighCm')}
+                  color="#10b981"
+                />
+                <EvolutionSpark
+                  title="Pantorrilla"
+                  unit="cm"
+                  values={series('calfCm')}
+                  color="#06b6d4"
+                />
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* GRÁFICA */}
       {chartData.length >= 2 && (
@@ -543,6 +814,50 @@ function EmptyState() {
           medición para empezar!
         </p>
       </div>
+    </div>
+  );
+}
+/**
+ * Mini gráfica de evolución individual usando recharts (mobile-first).
+ * Reutiliza los componentes de recharts ya importados en la app.
+ */
+function EvolutionSpark({
+  title,
+  unit,
+  values,
+  color,
+}: {
+  title: string;
+  unit: string;
+  values: number[];
+  color: string;
+}) {
+  if (values.length === 0) return null;
+  const data = values.map((v, i) => ({ idx: i, v }));
+  const last = values[values.length - 1];
+  const first = values[0];
+  const delta = values.length >= 2 ? +(last - first).toFixed(1) : null;
+
+  return (
+    <div className="rounded-lg border border-ink-100 bg-white p-2.5 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-ink-700">{title}</span>
+        <span className="text-[10px] text-ink-500 uppercase tracking-wider tabular-nums">
+          {last.toFixed(1)} {unit}
+        </span>
+      </div>
+      <div className="h-12">
+        <Sparkline values={values} width={140} height={40} color={color} />
+      </div>
+      {delta != null && Math.abs(delta) >= 0.1 && (
+        <p
+          className={`text-[10px] font-bold tabular-nums ${
+            Math.abs(delta) < 0.5 ? 'text-ink-400' : 'text-ink-600'
+          }`}
+        >
+          {delta > 0 ? '+' : ''}{delta.toFixed(1)} {unit} en {values.length} mediciones
+        </p>
+      )}
     </div>
   );
 }
