@@ -15,8 +15,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   themeColor: '#16a34a',
 };
 
@@ -25,7 +23,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es-PE">
       <head>
         <link rel="icon" href="/icon.svg" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="min-h-screen">{children}</body>
     </html>
